@@ -423,7 +423,13 @@ def _load_pipeline():
         return {"items": [], "last_updated": datetime.now().isoformat()}
 
 def _save_pipeline(data):
-    """Save pipeline data with atomic write"""
+    """Save pipeline data with atomic write + backup"""
+    import shutil
+    # Create backup before write
+    backup_file = CONTENT_PIPELINE_FILE + '.bak'
+    if os.path.exists(CONTENT_PIPELINE_FILE):
+        shutil.copy2(CONTENT_PIPELINE_FILE, backup_file)
+    
     # Atomic write: write to temp file, then rename
     temp_file = CONTENT_PIPELINE_FILE + '.tmp'
     try:
@@ -433,6 +439,9 @@ def _save_pipeline(data):
         return True
     except Exception as e:
         print(f"Error saving pipeline: {e}")
+        # Restore from backup on failure
+        if os.path.exists(backup_file):
+            shutil.copy2(backup_file, CONTENT_PIPELINE_FILE)
         if os.path.exists(temp_file):
             os.remove(temp_file)
         return False
@@ -464,18 +473,29 @@ def api_content_pipeline_create():
     if 'topic' not in new_item:
         return jsonify({"error": "Missing required field: topic"}), 400
     
+    # Validate topic is string and not too long (prevent abuse)
+    topic = new_item.get('topic')
+    if not isinstance(topic, str) or len(topic) > 500:
+        return jsonify({"error": "Topic must be string under 500 chars"}), 400
+    
+    # Validate stage if provided
+    stage = new_item.get('stage', 'trending')
+    valid_stages = ['trending', 'research', 'script', 'visual', 'approved', 'killed']
+    if stage not in valid_stages:
+        return jsonify({"error": f"Invalid stage. Must be one of: {valid_stages}"}), 400
+    
     import uuid
     item = {
         "id": str(uuid.uuid4()),
-        "topic": new_item.get('topic'),
-        "source": new_item.get('source', 'unknown'),
-        "stage": new_item.get('stage', 'trending'),
+        "topic": topic[:500],  # Truncate to max length
+        "source": str(new_item.get('source', 'unknown'))[:200],
+        "stage": stage,
         "created_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat(),
         "content": {
-            "research": new_item.get('content', {}).get('research', ''),
-            "script": new_item.get('content', {}).get('script', ''),
-            "visual_url": new_item.get('content', {}).get('visual_url', '')
+            "research": str(new_item.get('content', {}).get('research', ''))[:5000],
+            "script": str(new_item.get('content', {}).get('script', ''))[:5000],
+            "visual_url": str(new_item.get('content', {}).get('visual_url', ''))[:500]
         },
         "approved": False,
         "killed": False
