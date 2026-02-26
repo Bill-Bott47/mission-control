@@ -11,7 +11,7 @@ import psutil
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import requests
 import re
 
@@ -408,6 +408,164 @@ def api_infrastructure():
         **get_infrastructure_data()
     })
 
+# ============================================
+# Content Pipeline API Endpoints
+# ============================================
+
+CONTENT_PIPELINE_FILE = os.path.join(os.path.dirname(__file__), 'data', 'content-pipeline.json')
+
+def _load_pipeline():
+    """Load pipeline data from JSON file"""
+    try:
+        with open(CONTENT_PIPELINE_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"items": [], "last_updated": datetime.now().isoformat()}
+
+def _save_pipeline(data):
+    """Save pipeline data with atomic write"""
+    # Atomic write: write to temp file, then rename
+    temp_file = CONTENT_PIPELINE_FILE + '.tmp'
+    try:
+        with open(temp_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        os.replace(temp_file, CONTENT_PIPELINE_FILE)
+        return True
+    except Exception as e:
+        print(f"Error saving pipeline: {e}")
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+        return False
+
+@app.route('/api/content-pipeline')
+def api_content_pipeline_list():
+    """List all pipeline items"""
+    data = _load_pipeline()
+    # Filter out killed items by default (show only active + approved)
+    hide_killed = request.args.get('hide_killed', 'true').lower() == 'true'
+    items = data.get('items', [])
+    if hide_killed:
+        items = [i for i in items if not i.get('killed', False)]
+    return jsonify({
+        "items": items,
+        "last_updated": data.get('last_updated')
+    })
+
+@app.route('/api/content-pipeline', methods=['POST'])
+def api_content_pipeline_create():
+    """Add new pipeline item"""
+    data = _load_pipeline()
+    new_item = request.get_json()
+    
+    if not new_item:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate required fields
+    if 'topic' not in new_item:
+        return jsonify({"error": "Missing required field: topic"}), 400
+    
+    import uuid
+    item = {
+        "id": str(uuid.uuid4()),
+        "topic": new_item.get('topic'),
+        "source": new_item.get('source', 'unknown'),
+        "stage": new_item.get('stage', 'trending'),
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat(),
+        "content": {
+            "research": new_item.get('content', {}).get('research', ''),
+            "script": new_item.get('content', {}).get('script', ''),
+            "visual_url": new_item.get('content', {}).get('visual_url', '')
+        },
+        "approved": False,
+        "killed": False
+    }
+    
+    if 'items' not in data:
+        data['items'] = []
+    data['items'].append(item)
+    data['last_updated'] = datetime.now().isoformat()
+    
+    if _save_pipeline(data):
+        return jsonify(item), 201
+    return jsonify({"error": "Failed to save"}), 500
+
+@app.route('/api/content-pipeline/<item_id>/stage', methods=['PUT'])
+def api_content_pipeline_stage(item_id):
+    """Update item stage"""
+    data = _load_pipeline()
+    new_stage = request.get_json().get('stage')
+    
+    if not new_stage:
+        return jsonify({"error": "Missing stage"}), 400
+    
+    valid_stages = ['trending', 'research', 'script', 'visual', 'approved']
+    if new_stage not in valid_stages:
+        return jsonify({"error": f"Invalid stage: {new_stage}"}), 400
+    
+    for item in data.get('items', []):
+        if item.get('id') == item_id:
+            item['stage'] = new_stage
+            item['updated_at'] = datetime.now().isoformat()
+            data['last_updated'] = datetime.now().isoformat()
+            if _save_pipeline(data):
+                return jsonify(item)
+            return jsonify({"error": "Failed to save"}), 500
+    
+    return jsonify({"error": "Item not found"}), 404
+
+@app.route('/api/content-pipeline/<item_id>/approve', methods=['PUT'])
+def api_content_pipeline_approve(item_id):
+    """Approve pipeline item"""
+    data = _load_pipeline()
+    
+    for item in data.get('items', []):
+        if item.get('id') == item_id:
+            item['approved'] = True
+            item['killed'] = False
+            item['stage'] = 'approved'
+            item['updated_at'] = datetime.now().isoformat()
+            data['last_updated'] = datetime.now().isoformat()
+            if _save_pipeline(data):
+                return jsonify(item)
+            return jsonify({"error": "Failed to save"}), 500
+    
+    return jsonify({"error": "Item not found"}), 404
+
+@app.route('/api/content-pipeline/<item_id>/kill', methods=['PUT'])
+def api_content_pipeline_kill(item_id):
+    """Kill pipeline item"""
+    data = _load_pipeline()
+    
+    for item in data.get('items', []):
+        if item.get('id') == item_id:
+            item['killed'] = True
+            item['approved'] = False
+            item['stage'] = 'killed'
+            item['updated_at'] = datetime.now().isoformat()
+            data['last_updated'] = datetime.now().isoformat()
+            if _save_pipeline(data):
+                return jsonify(item)
+            return jsonify({"error": "Failed to save"}), 500
+    
+    return jsonify({"error": "Item not found"}), 404
+
+@app.route('/api/content-pipeline/<item_id>', methods=['DELETE'])
+def api_content_pipeline_delete(item_id):
+    """Delete pipeline item"""
+    data = _load_pipeline()
+    
+    original_count = len(data.get('items', []))
+    data['items'] = [i for i in data.get('items', []) if i.get('id') != item_id]
+    
+    if len(data['items']) < original_count:
+        data['last_updated'] = datetime.now().isoformat()
+        if _save_pipeline(data):
+            return jsonify({"success": True})
+        return jsonify({"error": "Failed to save"}), 500
+    
+    return jsonify({"error": "Item not found"}), 404
+
 if __name__ == '__main__':
     # Try port 8888 first, fall back to 8889 if occupied
     port = 8888
@@ -417,10 +575,10 @@ if __name__ == '__main__':
     import socket
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('127.0.0.1', 8888))
+            s.bind(('0.0.0.0', 8888))
     except OSError:
         print(f"Port 8888 is in use, using port 8889 instead...")
         port = 8889
     
     print(f"Dashboard available at: http://localhost:{port}")
-    app.run(host='127.0.0.1', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)

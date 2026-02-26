@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "id": "b66af1b9-8288-4dde-9219-00673f297887",
+      "topic": "AI agents changing marketing",
+      "source": "Twitter/@a16z",
+      "stage": "approved",
+      "created_at": "2026-02-26T08:46:18.776632",
+      "updated_at": "2026-02-26T08:46:38.474113",
+      "content": {
+        "research": "",
+        "script": "",
+        "visual_url": ""
+      },
+      "approved": true,
+      "killed": false
+    }
+  ],
+  "last_updated": "2026-02-26T08:46:38.474123"
+}

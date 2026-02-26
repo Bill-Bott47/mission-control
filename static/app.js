@@ -16,8 +16,10 @@ class Dashboard {
     init() {
         this.loadData();
         this.loadInfrastructureData();
+        this.loadContentPipeline();
         this.startAutoRefresh();
         this.startInfrastructureAutoRefresh();
+        this.initPipelineTabs();
     }
     
     async loadData() {
@@ -463,6 +465,103 @@ class Dashboard {
             clearInterval(this.infraTimer);
             this.infraTimer = null;
         }
+    }
+    
+    // Content Pipeline Methods
+    async loadContentPipeline() {
+        try {
+            const response = await fetch('/api/content-pipeline?hide_killed=true');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            this.renderContentPipeline(data.items);
+        } catch (error) {
+            console.error('Failed to load content pipeline:', error);
+            document.getElementById('content-pipeline').innerHTML = 
+                `<div class="error">Failed to load: ${error.message}</div>`;
+        }
+    }
+    
+    renderContentPipeline(items) {
+        const container = document.getElementById('content-pipeline');
+        if (!items || items.length === 0) {
+            container.innerHTML = '<div class="empty-state">No content in pipeline. Run Scrub to add items.</div>';
+            return;
+        }
+        
+        const stageEmojis = {
+            'trending': '🔍',
+            'research': '📝',
+            'script': '✍️',
+            'visual': '👁️',
+            'approved': '✅',
+            'killed': '❌'
+        };
+        
+        const stageLabels = {
+            'trending': 'Trending',
+            'research': 'Research',
+            'script': 'Script',
+            'visual': 'Visual',
+            'approved': 'Approved',
+            'killed': 'Killed'
+        };
+        
+        let html = '<div class="pipeline-grid">';
+        for (const item of items) {
+            const emoji = stageEmojis[item.stage] || '📋';
+            const label = stageLabels[item.stage] || item.stage;
+            const date = new Date(item.updated_at).toLocaleString();
+            
+            html += `
+                <div class="pipeline-item" data-id="${item.id}" data-stage="${item.stage}">
+                    <div class="pipeline-header">
+                        <span class="pipeline-stage">${emoji} ${label}</span>
+                        <span class="pipeline-date">${date}</span>
+                    </div>
+                    <div class="pipeline-topic">${this.escapeHtml(item.topic)}</div>
+                    <div class="pipeline-source">Source: ${this.escapeHtml(item.source)}</div>
+                    <div class="pipeline-actions">
+                        ${item.stage !== 'approved' ? 
+                            `<button class="btn-approve" onclick="window.dashboard.approveItem('${item.id}')">✅</button>` : ''}
+                        <button class="btn-kill" onclick="window.dashboard.killItem('${item.id}')">❌</button>
+                    </div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    }
+    
+    async approveItem(id) {
+        try {
+            const response = await fetch(`/api/content-pipeline/${id}/approve`, { method: 'PUT' });
+            if (!response.ok) throw new Error('Failed to approve');
+            this.loadContentPipeline();
+        } catch (error) {
+            console.error('Approve failed:', error);
+        }
+    }
+    
+    async killItem(id) {
+        try {
+            const response = await fetch(`/api/content-pipeline/${id}/kill`, { method: 'PUT' });
+            if (!response.ok) throw new Error('Failed to kill');
+            this.loadContentPipeline();
+        } catch (error) {
+            console.error('Kill failed:', error);
+        }
+    }
+    
+    initPipelineTabs() {
+        const tabs = document.querySelectorAll('.tab-btn');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                // TODO: Filter by stage - for now just reload all
+                this.loadContentPipeline();
+            });
+        });
     }
     
     escapeHtml(text) {
