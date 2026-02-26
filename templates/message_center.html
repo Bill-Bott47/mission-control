@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Center</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='message_center.css') }}">
+</head>
+<body>
+    <main class="layout">
+        <header class="page-header">
+            <h1>Message Center</h1>
+            <a href="/">Back to Dashboard</a>
+        </header>
+
+        <section class="filters">
+            <label>
+                Source
+                <select id="filter-source">
+                    <option value="">All</option>
+                    <option value="agent">agent</option>
+                    <option value="job">job</option>
+                </select>
+            </label>
+
+            <label>
+                Level
+                <select id="filter-level">
+                    <option value="">All</option>
+                    <option value="info">info</option>
+                    <option value="warn">warn</option>
+                    <option value="error">error</option>
+                </select>
+            </label>
+
+            <label>
+                Kind
+                <select id="filter-kind">
+                    <option value="">All</option>
+                    <option value="delivery_attempt">delivery_attempt</option>
+                    <option value="delivery_success">delivery_success</option>
+                    <option value="delivery_failure">delivery_failure</option>
+                    <option value="rate_limit">rate_limit</option>
+                    <option value="content_output">content_output</option>
+                </select>
+            </label>
+
+            <label>
+                Channel
+                <input id="filter-channel" type="text" placeholder="e.g. #alerts or 123456789">
+            </label>
+
+            <label>
+                Limit
+                <input id="filter-limit" type="number" min="1" max="500" value="100">
+            </label>
+
+            <button id="apply-filters" type="button">Apply</button>
+        </section>
+
+        <section class="content-grid">
+            <div class="event-list-wrap">
+                <h2>Events</h2>
+                <div id="event-list" class="event-list"></div>
+            </div>
+
+            <div class="event-detail-wrap">
+                <h2>Detail</h2>
+                <div id="event-detail" class="event-detail">Select an event.</div>
+            </div>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='message_center.js') }}"></script>
+</body>
+</html>

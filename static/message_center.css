@@ -1,0 +1,125 @@
+:root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --panel-2: #1f2937;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --border: #374151;
+    --accent: #22c55e;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+    background: linear-gradient(135deg, #020617, #0f172a 45%, #111827);
+    color: var(--text);
+}
+
+.layout {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.page-header a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.filters label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+input,
+select,
+button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+button {
+    cursor: pointer;
+    align-self: end;
+}
+
+.content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.event-list-wrap,
+.event-detail-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 500px;
+}
+
+.event-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.event-item {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #0b1220;
+    cursor: pointer;
+}
+
+.event-item.active {
+    border-color: var(--accent);
+}
+
+.event-title {
+    font-weight: 600;
+}
+
+.event-meta {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.event-detail {
+    white-space: pre-wrap;
+    line-height: 1.4;
+}
+
+@media (max-width: 900px) {
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -6,6 +6,8 @@ Simple Flask server serving a real-time dashboard
 
 import json
 import os
+import shutil
+import sqlite3
 import subprocess
 import psutil
 import time
@@ -23,6 +25,24 @@ GATEWAY_URL = "http://127.0.0.1:18789"
 EMMA_GATEWAY_URL = "http://127.0.0.1:18790"
 TRADING_DIR = "/Users/bill/.openclaw/workspace/trading"
 REMINDERS_FILE = "/Users/bill/.openclaw/workspace/REMINDERS.md"
+MESSAGE_CENTER_DB = os.path.join(os.path.dirname(__file__), 'data', 'mission-control.db')
+
+VALID_MESSAGE_SOURCES = {'agent', 'job'}
+VALID_MESSAGE_LEVELS = {'info', 'warn', 'error'}
+VALID_MESSAGE_KINDS = {
+    'delivery_attempt',
+    'delivery_success',
+    'delivery_failure',
+    'rate_limit',
+    'content_output',
+}
+
+MAX_MESSAGE_CHANNEL_LEN = 255
+MAX_MESSAGE_TITLE_LEN = 255
+MAX_MESSAGE_BODY_LEN = 10000
+MAX_MESSAGE_META_JSON_LEN = 20000
+
+_message_center_db_initialized = False
 
 # Known bot patterns for process detection
 BOT_PATTERNS = {
@@ -40,6 +60,169 @@ _phoenix_cache = {
     'timestamp': 0,
     'ttl': 60  # 60 seconds
 }
+
+def _backup_db_before_migration(db_path):
+    """Create a .bak copy of sqlite db before migrations."""
+    if os.path.exists(db_path):
+        shutil.copy2(db_path, db_path + '.bak')
+
+def _get_message_center_connection():
+    conn = sqlite3.connect(MESSAGE_CENTER_DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_message_center_db():
+    """Initialize sqlite db and run message_events migration."""
+    os.makedirs(os.path.dirname(MESSAGE_CENTER_DB), exist_ok=True)
+    _backup_db_before_migration(MESSAGE_CENTER_DB)
+
+    conn = _get_message_center_connection()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS message_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                source TEXT NOT NULL,
+                level TEXT NOT NULL,
+                channel TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                title TEXT NOT NULL,
+                body TEXT NOT NULL,
+                meta_json TEXT
+            )
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+def _ensure_message_center_db():
+    global _message_center_db_initialized
+    if not _message_center_db_initialized:
+        init_message_center_db()
+        _message_center_db_initialized = True
+
+def _normalize_message_event_payload(payload):
+    """Validate and normalize incoming message-event payload."""
+    if not isinstance(payload, dict):
+        return None, "JSON object body is required", False
+
+    source = payload.get('source')
+    level = payload.get('level')
+    channel = payload.get('channel')
+    kind = payload.get('kind')
+    title = payload.get('title')
+    body = payload.get('body', '')
+    meta_json = payload.get('meta_json')
+
+    if source not in VALID_MESSAGE_SOURCES:
+        return None, f"source must be one of {sorted(VALID_MESSAGE_SOURCES)}", False
+    if level not in VALID_MESSAGE_LEVELS:
+        return None, f"level must be one of {sorted(VALID_MESSAGE_LEVELS)}", False
+    if kind not in VALID_MESSAGE_KINDS:
+        return None, f"kind must be one of {sorted(VALID_MESSAGE_KINDS)}", False
+
+    if not isinstance(channel, str) or not channel.strip():
+        return None, "channel must be a non-empty string", False
+    channel = channel.strip()
+    if len(channel) > MAX_MESSAGE_CHANNEL_LEN:
+        return None, f"channel max length is {MAX_MESSAGE_CHANNEL_LEN}", False
+
+    if not isinstance(title, str) or not title.strip():
+        return None, "title must be a non-empty string", False
+    title = title.strip()
+    if len(title) > MAX_MESSAGE_TITLE_LEN:
+        return None, f"title max length is {MAX_MESSAGE_TITLE_LEN}", False
+
+    if not isinstance(body, str):
+        return None, "body must be a string", False
+    body_was_truncated = len(body) > MAX_MESSAGE_BODY_LEN
+    if body_was_truncated:
+        body = body[:MAX_MESSAGE_BODY_LEN]
+
+    meta_json_str = None
+    if meta_json is not None:
+        if isinstance(meta_json, str):
+            try:
+                json.loads(meta_json)
+            except json.JSONDecodeError:
+                return None, "meta_json string must be valid JSON", False
+            meta_json_str = meta_json
+        elif isinstance(meta_json, (dict, list)):
+            meta_json_str = json.dumps(meta_json)
+        else:
+            return None, "meta_json must be object, array, JSON string, or null", False
+
+        if len(meta_json_str) > MAX_MESSAGE_META_JSON_LEN:
+            return None, f"meta_json max length is {MAX_MESSAGE_META_JSON_LEN}", False
+
+    return {
+        "created_at": datetime.now().isoformat(),
+        "source": source,
+        "level": level,
+        "channel": channel,
+        "kind": kind,
+        "title": title,
+        "body": body,
+        "meta_json": meta_json_str
+    }, None, body_was_truncated
+
+def _serialize_message_event_row(row):
+    return {
+        "id": row["id"],
+        "created_at": row["created_at"],
+        "source": row["source"],
+        "level": row["level"],
+        "channel": row["channel"],
+        "kind": row["kind"],
+        "title": row["title"],
+        "body": row["body"],
+        "meta_json": row["meta_json"],
+    }
+
+def log_message_event(source, level, channel, kind, title, body="", meta_json=None):
+    """Helper for endpoints/jobs to write a message event."""
+    normalized, error, _ = _normalize_message_event_payload({
+        "source": source,
+        "level": level,
+        "channel": channel,
+        "kind": kind,
+        "title": title,
+        "body": body,
+        "meta_json": meta_json,
+    })
+    if error:
+        raise ValueError(error)
+
+    _ensure_message_center_db()
+    conn = _get_message_center_connection()
+    try:
+        cursor = conn.execute(
+            """
+            INSERT INTO message_events
+            (created_at, source, level, channel, kind, title, body, meta_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                normalized["created_at"],
+                normalized["source"],
+                normalized["level"],
+                normalized["channel"],
+                normalized["kind"],
+                normalized["title"],
+                normalized["body"],
+                normalized["meta_json"],
+            )
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM message_events WHERE id = ?",
+            (cursor.lastrowid,)
+        ).fetchone()
+        return _serialize_message_event_row(row)
+    finally:
+        conn.close()
 
 def get_bot_status():
     """Check status of all trading bots using process patterns"""
@@ -377,6 +560,11 @@ def dashboard():
     """Main dashboard page"""
     return render_template('index.html')
 
+@app.route('/message-center')
+def message_center():
+    """Message Center UI."""
+    return render_template('message_center.html')
+
 @app.route('/api/status')
 def api_status():
     """API endpoint for dashboard data"""
@@ -407,6 +595,93 @@ def api_infrastructure():
         "timestamp": datetime.now().isoformat(),
         **get_infrastructure_data()
     })
+
+@app.route('/api/message-events', methods=['POST'])
+def api_message_events_create():
+    """Create a message event."""
+    payload = request.get_json(silent=True)
+    normalized, error, body_was_truncated = _normalize_message_event_payload(payload)
+    if error:
+        return jsonify({"error": error}), 400
+
+    try:
+        event = log_message_event(
+            source=normalized["source"],
+            level=normalized["level"],
+            channel=normalized["channel"],
+            kind=normalized["kind"],
+            title=normalized["title"],
+            body=normalized["body"],
+            meta_json=normalized["meta_json"],
+        )
+        return jsonify({
+            "event": event,
+            "body_was_truncated": body_was_truncated
+        }), 201
+    except Exception as e:
+        return jsonify({"error": f"Failed to save event: {str(e)}"}), 500
+
+@app.route('/api/message-events')
+def api_message_events_list():
+    """List message events newest-first with optional filters."""
+    _ensure_message_center_db()
+
+    try:
+        limit = int(request.args.get('limit', 100))
+    except ValueError:
+        return jsonify({"error": "limit must be an integer"}), 400
+
+    if limit < 1:
+        return jsonify({"error": "limit must be >= 1"}), 400
+    if limit > 500:
+        limit = 500
+
+    source = request.args.get('source', '').strip()
+    level = request.args.get('level', '').strip()
+    channel = request.args.get('channel', '').strip()
+    kind = request.args.get('kind', '').strip()
+
+    if source and source not in VALID_MESSAGE_SOURCES:
+        return jsonify({"error": f"source must be one of {sorted(VALID_MESSAGE_SOURCES)}"}), 400
+    if level and level not in VALID_MESSAGE_LEVELS:
+        return jsonify({"error": f"level must be one of {sorted(VALID_MESSAGE_LEVELS)}"}), 400
+    if kind and kind not in VALID_MESSAGE_KINDS:
+        return jsonify({"error": f"kind must be one of {sorted(VALID_MESSAGE_KINDS)}"}), 400
+    if channel and len(channel) > MAX_MESSAGE_CHANNEL_LEN:
+        return jsonify({"error": f"channel max length is {MAX_MESSAGE_CHANNEL_LEN}"}), 400
+
+    query = "SELECT * FROM message_events"
+    where_clauses = []
+    params = []
+
+    if source:
+        where_clauses.append("source = ?")
+        params.append(source)
+    if level:
+        where_clauses.append("level = ?")
+        params.append(level)
+    if channel:
+        where_clauses.append("channel = ?")
+        params.append(channel)
+    if kind:
+        where_clauses.append("kind = ?")
+        params.append(kind)
+
+    if where_clauses:
+        query += " WHERE " + " AND ".join(where_clauses)
+
+    query += " ORDER BY created_at DESC, id DESC LIMIT ?"
+    params.append(limit)
+
+    conn = _get_message_center_connection()
+    try:
+        rows = conn.execute(query, params).fetchall()
+        return jsonify({
+            "events": [_serialize_message_event_row(row) for row in rows],
+            "count": len(rows)
+        })
+    finally:
+        conn.close()
 
 # ============================================
 # Content Pipeline API Endpoints
@@ -514,7 +789,8 @@ def api_content_pipeline_create():
 def api_content_pipeline_stage(item_id):
     """Update item stage"""
     data = _load_pipeline()
-    new_stage = request.get_json().get('stage')
+    payload = request.get_json(silent=True) or {}
+    new_stage = payload.get('stage')
     
     if not new_stage:
         return jsonify({"error": "Missing stage"}), 400
@@ -590,6 +866,7 @@ if __name__ == '__main__':
     # Try port 8888 first, fall back to 8889 if occupied
     port = 8888
     print("Starting Mission Control v1...")
+    _ensure_message_center_db()
     
     # Check if port 8888 is available
     import socket

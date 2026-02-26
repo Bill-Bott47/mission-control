@@ -23,6 +23,7 @@ A simple, dark-mode dashboard that shows Jonathan everything at a glance.
 
 - **Dashboard**: http://localhost:8888
 - **API**: http://localhost:8888/api/status
+- **Message Center**: http://localhost:8888/message-center
 
 ## Current Status
 
@@ -61,6 +62,32 @@ launchctl unload ~/Library/LaunchAgents/com.openclaw.mission-control.plist
 
 # Start LaunchAgent
 launchctl load ~/Library/LaunchAgents/com.openclaw.mission-control.plist
+```
+
+## Message Center API
+
+New SQLite-backed message event API:
+
+- `POST /api/message-events` creates an event
+- `GET /api/message-events?limit=100&level=&source=&channel=&kind=` lists newest first
+
+Example create request:
+
+```bash
+curl -X POST http://localhost:8888/api/message-events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "agent",
+    "level": "info",
+    "channel": "discord:alerts",
+    "kind": "delivery_success",
+    "title": "Discord post delivered",
+    "body": "Posted market summary to alerts channel",
+    "meta_json": {
+      "message_id": "123456",
+      "latency_ms": 238
+    }
+  }'
 ```
 
 ## Next Steps (Future Versions)
