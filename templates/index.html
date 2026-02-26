@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Control v1</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Mission Control v1</h1>
+            <div class="timestamp" id="last-update"></div>
+        </header>
+
+        <div class="grid">
+            <!-- Bot Status Section -->
+            <div class="card">
+                <h2>🤖 Bot Status</h2>
+                <div class="bot-grid" id="bot-status">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Cron Jobs Section -->
+            <div class="card">
+                <h2>⏰ Cron Jobs</h2>
+                <div id="cron-jobs">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Trading Signals Section -->
+            <div class="card wide">
+                <h2>📈 Trading Signals</h2>
+                <div id="trading-signals">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Reminders Section -->
+            <div class="card">
+                <h2>📝 Reminders</h2>
+                <div id="reminders">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- System Health Section -->
+            <div class="card wide">
+                <h2>⚙️ System Health</h2>
+                <div id="system-health">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Goals Section -->
+            <div class="card">
+                <h2>🎯 Goals</h2>
+                <div class="goals-list">
+                    <div class="goal">
+                        <div class="goal-title">Trading Systems</div>
+                        <div class="goal-desc">6 bots running profitable strategies</div>
+                    </div>
+                    <div class="goal">
+                        <div class="goal-title">Daily Research</div>
+                        <div class="goal-desc">Signal scanning + opportunity identification</div>
+                    </div>
+                    <div class="goal">
+                        <div class="goal-title">Portfolio Growth</div>
+                        <div class="goal-desc">Consistent alpha generation through automation</div>
+                    </div>
+                    <div class="goal">
+                        <div class="goal-title">Risk Management</div>
+                        <div class="goal-desc">Paper trading validation before live deployment</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Infrastructure Section -->
+            <div class="card wide">
+                <h2>🏗️ Infrastructure</h2>
+                <div id="infrastructure">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <div class="status-bar">
+                <span id="connection-status">●</span>
+                <span>Auto-refresh: 30s | Infrastructure: 60s</span>
+                <span id="error-status"></span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.openclaw.mission-control</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/bill/.openclaw/workspace/mission-control/start.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/bill/.openclaw/workspace/mission-control</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/bill/.openclaw/workspace/mission-control/mission-control.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/bill/.openclaw/workspace/mission-control/mission-control.error.log</string>
+</dict>
+</plist>
