@@ -23,7 +23,8 @@ A simple, dark-mode dashboard that shows Jonathan everything at a glance.
 
 - **Dashboard**: http://localhost:8888
 - **API**: http://localhost:8888/api/status
-- **Message Center**: http://localhost:8888/message-center
+- **Message Center**: http://localhost:8888/messages
+- **Ops Alias**: http://localhost:8888/ops
 
 ## Current Status
 
@@ -70,6 +71,8 @@ New SQLite-backed message event API:
 
 - `POST /api/message-events` creates an event
 - `GET /api/message-events?limit=100&level=&source=&channel=&kind=` lists newest first
+- `GET /api/messages/timeline?limit=200&channel=&agent=&level=&delivery_status=` unified DB + log timeline
+- `GET /api/messages/status-post?entry=<timeline_id>` generates status-only post text with Mission Control link
 
 Example create request:
 

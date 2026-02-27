@@ -6,6 +6,7 @@ Simple Flask server serving a real-time dashboard
 
 import json
 import os
+import glob
 import shutil
 import sqlite3
 import subprocess
@@ -16,6 +17,7 @@ from pathlib import Path
 from flask import Flask, render_template, jsonify, request
 import requests
 import re
+from urllib.parse import quote
 
 app = Flask(__name__)
 
@@ -26,6 +28,9 @@ EMMA_GATEWAY_URL = "http://127.0.0.1:18790"
 TRADING_DIR = "/Users/bill/.openclaw/workspace/trading"
 REMINDERS_FILE = "/Users/bill/.openclaw/workspace/REMINDERS.md"
 MESSAGE_CENTER_DB = os.path.join(os.path.dirname(__file__), 'data', 'mission-control.db')
+LOGS_DIR = "/Users/bill/.openclaw/workspace/logs"
+MESSAGE_TIMELINE_FILE_PATTERNS = ("*.jsonl", "*.log", "*.out", "*.err")
+TASK_TRACKER_FILE = "/Users/bill/.openclaw/workspace/TASK_TRACKER.md"
 
 VALID_MESSAGE_SOURCES = {'agent', 'job'}
 VALID_MESSAGE_LEVELS = {'info', 'warn', 'error'}
@@ -43,6 +48,8 @@ MAX_MESSAGE_BODY_LEN = 10000
 MAX_MESSAGE_META_JSON_LEN = 20000
 
 _message_center_db_initialized = False
+RUN_ID_RE = re.compile(r'runId=([^\s]+)')
+AGENT_RE = re.compile(r'\[agent/([^\]]+)\]')
 
 # Known bot patterns for process detection
 BOT_PATTERNS = {
@@ -223,6 +230,288 @@ def log_message_event(source, level, channel, kind, title, body="", meta_json=No
         return _serialize_message_event_row(row)
     finally:
         conn.close()
+
+def _parse_iso_timestamp(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith('Z'):
+        text = text[:-1] + '+00:00'
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+def _parse_bracket_timestamp(line):
+    # Supports formats like [2026-02-26 09:25:02]
+    if not line.startswith('['):
+        return None
+    end = line.find(']')
+    if end == -1:
+        return None
+    raw = line[1:end]
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+def _extract_agent_and_run(raw_text):
+    if not raw_text:
+        return "", ""
+
+    agent_match = AGENT_RE.search(raw_text)
+    run_match = RUN_ID_RE.search(raw_text)
+
+    agent_name = agent_match.group(1) if agent_match else ""
+    run_id = run_match.group(1) if run_match else ""
+
+    return agent_name, run_id
+
+def _extract_discord_url(entry, meta_obj):
+    if isinstance(meta_obj, dict):
+        direct_fields = (
+            "discord_url",
+            "discordUrl",
+            "jump_url",
+            "message_url",
+            "messageUrl",
+            "url",
+            "link",
+        )
+        for field in direct_fields:
+            value = meta_obj.get(field)
+            if isinstance(value, str) and "discord.com/channels/" in value:
+                return value
+
+        guild_id = meta_obj.get("guild_id") or meta_obj.get("guildId")
+        channel_id = meta_obj.get("discord_channel_id") or meta_obj.get("channel_id") or meta_obj.get("channelId")
+        message_id = meta_obj.get("discord_message_id") or meta_obj.get("message_id") or meta_obj.get("messageId")
+        if guild_id and channel_id and message_id:
+            return f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}"
+
+    for field in ("discord_url", "discordUrl", "message_url", "messageUrl", "url", "link"):
+        value = entry.get(field)
+        if isinstance(value, str) and "discord.com/channels/" in value:
+            return value
+
+    return ""
+
+def _infer_delivery_status(level, kind, title, body, error_text):
+    kind = (kind or "").lower()
+    level = (level or "").lower()
+    haystack = " ".join([kind, title or "", body or "", error_text or ""]).lower()
+
+    if "rate_limit" in kind or "rate limit" in haystack or "rate-limited" in haystack:
+        return "rate_limited"
+    if "delivery_success" in kind or "delivered" in haystack or "sent successfully" in haystack:
+        return "delivered"
+    if "delivery_failure" in kind or level == "error" or "failed" in haystack or "error" in haystack:
+        return "failed"
+    return "unknown"
+
+def _normalize_message_timeline_entry(entry, *, source, file_name="", message_event_id=None):
+    timestamp = (
+        entry.get("timestamp")
+        or entry.get("created_at")
+        or entry.get("time")
+        or entry.get("datetime")
+    )
+    ts_obj = _parse_iso_timestamp(timestamp)
+
+    raw_text = entry.get("raw", "")
+    agent_from_raw, run_from_raw = _extract_agent_and_run(raw_text)
+    agent = entry.get("agent") or entry.get("agent_name") or agent_from_raw or entry.get("to") or ""
+    run_id = entry.get("run_id") or entry.get("runId") or run_from_raw or ""
+    level = str(entry.get("level", "info")).lower()
+    channel = (
+        entry.get("channel")
+        or entry.get("sinkChannel")
+        or entry.get("channel_name")
+        or ("discord" if "discord" in raw_text.lower() else "")
+        or "unknown"
+    )
+    kind = entry.get("kind", "")
+    title = entry.get("title") or entry.get("message") or (f"{source} event")
+    body = entry.get("body") or ""
+    error_text = entry.get("error") or ""
+
+    meta_obj = None
+    meta_raw = entry.get("meta_json")
+    if isinstance(meta_raw, str) and meta_raw.strip():
+        try:
+            meta_obj = json.loads(meta_raw)
+        except json.JSONDecodeError:
+            meta_obj = {"_raw": meta_raw}
+    elif isinstance(meta_raw, (dict, list)):
+        meta_obj = meta_raw
+
+    discord_url = _extract_discord_url(entry, meta_obj)
+    delivery_status = (
+        str(entry.get("delivery_status", "")).strip().lower()
+        or _infer_delivery_status(level, kind, title, body, error_text)
+    )
+
+    raw_id = entry.get("id") or message_event_id or f"{source}:{file_name}:{title}:{timestamp}"
+    timeline_id = str(raw_id)
+    mc_path = f"/messages?entry={quote(timeline_id, safe='')}"
+
+    return {
+        "id": timeline_id,
+        "source": source,
+        "file_name": file_name,
+        "timestamp": timestamp,
+        "timestamp_epoch": ts_obj.timestamp() if ts_obj else 0,
+        "channel": channel,
+        "agent": agent,
+        "run_id": run_id,
+        "level": level,
+        "kind": kind,
+        "title": title,
+        "body": body,
+        "error": error_text,
+        "delivery_status": delivery_status,
+        "discord_url": discord_url,
+        "mc_path": mc_path,
+        "meta_json": meta_obj,
+        "raw": raw_text,
+    }
+
+# Simple in-memory cache to avoid re-parsing all logs on every UI refresh.
+_MESSAGE_LOG_CACHE = {
+    "ts": 0.0,
+    "latest_mtime": 0.0,
+    "entries": [],
+}
+
+
+def _read_message_log_files():
+    entries = []
+    if not os.path.isdir(LOGS_DIR):
+        return entries
+
+    file_paths = []
+    for pattern in MESSAGE_TIMELINE_FILE_PATTERNS:
+        file_paths.extend(glob.glob(os.path.join(LOGS_DIR, pattern)))
+
+    # Deduplicate while preserving order.
+    seen_files = set()
+    unique_paths = []
+    for file_path in sorted(file_paths):
+        if file_path not in seen_files:
+            seen_files.add(file_path)
+            unique_paths.append(file_path)
+
+    # Cache key: newest mtime among candidate files.
+    latest_mtime = 0.0
+    for file_path in unique_paths:
+        try:
+            latest_mtime = max(latest_mtime, os.path.getmtime(file_path))
+        except OSError:
+            continue
+
+    now_ts = time.time()
+    cache = _MESSAGE_LOG_CACHE
+    if cache["entries"] and cache["latest_mtime"] == latest_mtime and (now_ts - cache["ts"]) < 5:
+        return cache["entries"]
+
+    for file_path in unique_paths:
+        file_name = os.path.basename(file_path)
+        if file_name == "ops-errors-processed.log":
+            continue
+        lower_name = file_name.lower()
+        if not file_name.endswith(".jsonl"):
+            message_like = any(token in lower_name for token in ("ops", "message", "discord", "telegram", "alert", "event"))
+            if not message_like:
+                continue
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as handle:
+                for index, raw_line in enumerate(handle):
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+
+                    if file_name.endswith(".jsonl"):
+                        try:
+                            payload = json.loads(line)
+                            if isinstance(payload, dict):
+                                entries.append(_normalize_message_timeline_entry(payload, source="log", file_name=file_name))
+                            else:
+                                entries.append(_normalize_message_timeline_entry({
+                                    "id": f"{file_name}:{index}",
+                                    "message": str(payload),
+                                    "level": "info",
+                                }, source="log", file_name=file_name))
+                        except json.JSONDecodeError:
+                            # Fall back to plaintext parse for malformed lines.
+                            pass
+                        continue
+
+                    ts_obj = _parse_bracket_timestamp(line)
+                    level = "info"
+                    lower_line = line.lower()
+                    if "error" in lower_line:
+                        level = "error"
+                    elif "warn" in lower_line:
+                        level = "warn"
+
+                    entries.append(_normalize_message_timeline_entry({
+                        "id": f"{file_name}:{index}",
+                        "timestamp": ts_obj.isoformat() if ts_obj else "",
+                        "level": level,
+                        "message": line,
+                        "body": line,
+                    }, source="log", file_name=file_name))
+        except OSError:
+            continue
+
+    _MESSAGE_LOG_CACHE["ts"] = now_ts
+    _MESSAGE_LOG_CACHE["latest_mtime"] = latest_mtime
+    _MESSAGE_LOG_CACHE["entries"] = entries
+
+    return entries
+
+def _read_db_message_entries():
+    _ensure_message_center_db()
+    conn = _get_message_center_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM message_events ORDER BY created_at DESC, id DESC LIMIT 500"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    entries = []
+    for row in rows:
+        serialized = _serialize_message_event_row(row)
+        serialized["id"] = f"db:{serialized['id']}"
+        entries.append(_normalize_message_timeline_entry(serialized, source="db", file_name="message_events", message_event_id=serialized["id"]))
+    return entries
+
+def _build_message_timeline(limit=200, channel="", agent="", run_id="", level="", delivery_status=""):
+    entries = _read_db_message_entries() + _read_message_log_files()
+
+    def matches(entry):
+        if channel and channel.lower() not in str(entry.get("channel", "")).lower():
+            return False
+        if agent and agent.lower() not in str(entry.get("agent", "")).lower():
+            return False
+        if run_id and run_id.lower() not in str(entry.get("run_id", "")).lower():
+            return False
+        if level and entry.get("level", "") != level:
+            return False
+        if delivery_status and entry.get("delivery_status", "") != delivery_status:
+            return False
+        return True
+
+    filtered = [entry for entry in entries if matches(entry)]
+    filtered.sort(key=lambda item: (item.get("timestamp_epoch", 0), item.get("id", "")), reverse=True)
+    return filtered[:limit]
 
 def get_bot_status():
     """Check status of all trading bots using process patterns"""
@@ -555,15 +844,147 @@ def get_infrastructure_data():
     
     return infra_data
 
+def _parse_task_tracker():
+    """Parse TASK_TRACKER.md into structured task objects."""
+    path = Path(TASK_TRACKER_FILE)
+    default_payload = {
+        "tasks": [],
+        "file_path": TASK_TRACKER_FILE,
+        "file_exists": path.exists(),
+        "file_modified_at": None,
+    }
+
+    if not path.exists():
+        return default_payload
+
+    try:
+        content = path.read_text(encoding='utf-8')
+    except Exception as e:
+        return {
+            **default_payload,
+            "error": f"Error reading TASK_TRACKER.md: {str(e)}",
+        }
+
+    metadata_pattern = re.compile(r'^\s*-\s+\*\*([^*]+?)\s*:?\*\*\s*(.*)\s*$')
+
+    tasks = []
+    in_code_fence = False
+    current_section = None
+    current_title = None
+    current_lines = []
+
+    def finalize_task(title, lines, section):
+        if not title:
+            return
+
+        fields = {}
+        for line in lines:
+            match = metadata_pattern.match(line)
+            if match:
+                key = match.group(1).strip().lower()
+                value = match.group(2).strip()
+                fields[key] = value
+
+        task_id = ""
+        task_title = title.strip()
+        task_match = re.match(r'^(T-\d+)\s*:\s*(.+)$', task_title)
+        if task_match:
+            task_id = task_match.group(1).strip()
+            task_title = task_match.group(2).strip()
+
+        raw_text = '\n'.join([title] + lines).strip()
+        search_text = ' '.join([
+            task_id,
+            task_title,
+            fields.get("what", ""),
+            fields.get("context", ""),
+            fields.get("who", ""),
+            fields.get("agent", ""),
+            fields.get("status", ""),
+            fields.get("priority", ""),
+            raw_text,
+        ]).lower()
+
+        tasks.append({
+            "id": task_id,
+            "title": task_title,
+            "header": title.strip(),
+            "section": section,
+            "agent": fields.get("agent", ""),
+            "what": fields.get("what", ""),
+            "who": fields.get("who", ""),
+            "due": fields.get("due", ""),
+            "status": fields.get("status", ""),
+            "priority": fields.get("priority", ""),
+            "context": fields.get("context", ""),
+            "created": fields.get("created", ""),
+            "updated": fields.get("updated", ""),
+            "completed": fields.get("completed", ""),
+            "blocked": fields.get("blocked", ""),
+            "progress": fields.get("progress", ""),
+            "resolved": fields.get("resolved", ""),
+            "process": fields.get("process", ""),
+            "raw_text": raw_text,
+            "search_text": search_text,
+        })
+
+    for raw_line in content.splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            in_code_fence = not in_code_fence
+            continue
+
+        if in_code_fence:
+            continue
+
+        if stripped.startswith("## "):
+            current_section = stripped[3:].strip()
+            continue
+
+        if stripped.startswith("### "):
+            finalize_task(current_title, current_lines, current_section)
+            current_title = stripped[4:].strip()
+            current_lines = []
+            continue
+
+        if current_title is not None:
+            current_lines.append(line)
+
+    finalize_task(current_title, current_lines, current_section)
+
+    return {
+        "tasks": tasks,
+        "file_path": TASK_TRACKER_FILE,
+        "file_exists": True,
+        "file_modified_at": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
+    }
+
 @app.route('/')
 def dashboard():
     """Main dashboard page"""
     return render_template('index.html')
 
+@app.route('/messages')
+def messages():
+    """Primary Message Center UI."""
+    return render_template('message_center.html')
+
 @app.route('/message-center')
 def message_center():
-    """Message Center UI."""
+    """Legacy Message Center UI route."""
     return render_template('message_center.html')
+
+@app.route('/ops')
+def ops():
+    """Ops view alias to Message Center."""
+    return render_template('message_center.html')
+
+@app.route('/tasks')
+def tasks_page():
+    """Task Tracker UI."""
+    return render_template('tasks.html')
 
 @app.route('/api/status')
 def api_status():
@@ -596,6 +1017,61 @@ def api_infrastructure():
         **get_infrastructure_data()
     })
 
+@app.route('/api/tasks')
+def api_tasks_list():
+    """Read TASK_TRACKER.md and return parsed tasks with optional filters."""
+    data = _parse_task_tracker()
+
+    if data.get("error"):
+        return jsonify(data), 500
+    if not data.get("file_exists"):
+        return jsonify(data), 404
+
+    status_filter = request.args.get('status', '').strip()
+    priority_filter = request.args.get('priority', '').strip()
+    agent_filter = request.args.get('agent', '').strip()
+    owner_filter = request.args.get('owner', '').strip()
+    query_filter = request.args.get('q', '').strip().lower()
+
+    tasks = data.get("tasks", [])
+
+    if status_filter and status_filter.upper() != 'ALL':
+        tasks = [t for t in tasks if t.get("status", "").upper() == status_filter.upper()]
+
+    if priority_filter and priority_filter.upper() != 'ALL':
+        tasks = [t for t in tasks if t.get("priority", "").upper() == priority_filter.upper()]
+
+    if agent_filter and agent_filter.upper() != 'ALL':
+        tasks = [t for t in tasks if t.get("agent", "").upper() == agent_filter.upper()]
+
+    if owner_filter and owner_filter.upper() != 'ALL':
+        tasks = [t for t in tasks if t.get("who", "").upper() == owner_filter.upper()]
+
+    if query_filter:
+        tasks = [t for t in tasks if query_filter in t.get("search_text", "")]
+
+    all_tasks = data.get("tasks", [])
+    statuses = sorted({t.get("status", "").upper() for t in all_tasks if t.get("status")})
+    priorities = sorted({t.get("priority", "") for t in all_tasks if t.get("priority")})
+    agents = sorted({t.get("agent", "") for t in all_tasks if t.get("agent")})
+    owners = sorted({t.get("who", "") for t in all_tasks if t.get("who")})
+
+    for task in tasks:
+        task.pop("search_text", None)
+
+    return jsonify({
+        "tasks": tasks,
+        "count": len(tasks),
+        "total_count": len(all_tasks),
+        "file_path": data.get("file_path"),
+        "file_modified_at": data.get("file_modified_at"),
+        "statuses": statuses,
+        "priorities": priorities,
+        "agents": agents,
+        "owners": owners,
+        "timestamp": datetime.now().isoformat(),
+    })
+
 @app.route('/api/message-events', methods=['POST'])
 def api_message_events_create():
     """Create a message event."""
@@ -614,9 +1090,15 @@ def api_message_events_create():
             body=normalized["body"],
             meta_json=normalized["meta_json"],
         )
+        entry_id = f"db:{event['id']}"
+        mission_control_url = f"{request.host_url.rstrip('/')}/messages?entry={entry_id}"
+        status_only_text = f"See details in Mission Control: {mission_control_url}"
         return jsonify({
             "event": event,
-            "body_was_truncated": body_was_truncated
+            "body_was_truncated": body_was_truncated,
+            "entry_id": entry_id,
+            "mission_control_url": mission_control_url,
+            "status_only_text": status_only_text,
         }), 201
     except Exception as e:
         return jsonify({"error": f"Failed to save event: {str(e)}"}), 500
@@ -682,6 +1164,114 @@ def api_message_events_list():
         })
     finally:
         conn.close()
+
+@app.route('/api/messages/timeline')
+def api_messages_timeline():
+    """Unified timeline from DB + message log files."""
+    try:
+        limit = int(request.args.get('limit', 200))
+    except ValueError:
+        return jsonify({"error": "limit must be an integer"}), 400
+
+    if limit < 1:
+        return jsonify({"error": "limit must be >= 1"}), 400
+    if limit > 1000:
+        limit = 1000
+
+    level = request.args.get('level', '').strip().lower()
+    if level and level not in VALID_MESSAGE_LEVELS:
+        return jsonify({"error": f"level must be one of {sorted(VALID_MESSAGE_LEVELS)}"}), 400
+
+    delivery_status = request.args.get('delivery_status', '').strip().lower()
+    valid_statuses = {"", "delivered", "failed", "rate_limited", "unknown"}
+    if delivery_status not in valid_statuses:
+        return jsonify({"error": "delivery_status must be one of delivered, failed, rate_limited, unknown"}), 400
+
+    channel = request.args.get('channel', '').strip()
+    agent = request.args.get('agent', '').strip()
+    run_id = request.args.get('run_id', '').strip()
+
+    entries = _build_message_timeline(
+        limit=limit,
+        channel=channel,
+        agent=agent,
+        run_id=run_id,
+        level=level,
+        delivery_status=delivery_status,
+    )
+
+    host_url = request.host_url.rstrip('/')
+    for entry in entries:
+        entry["mc_url"] = f"{host_url}{entry['mc_path']}"
+
+    return jsonify({
+        "entries": entries,
+        "count": len(entries),
+        "filters": {
+            "channel": channel,
+            "agent": agent,
+            "run_id": run_id,
+            "level": level,
+            "delivery_status": delivery_status,
+            "limit": limit,
+        }
+    })
+
+@app.route('/api/messages/status-post')
+def api_messages_status_post():
+    """
+    Build status-only post text for Discord/Telegram:
+    "See details in Mission Control: <link>"
+    """
+    entry_id = request.args.get('entry', '').strip()
+    host_url = request.host_url.rstrip('/')
+
+    target = None
+
+    # Prefer direct DB lookup for db:<id> entries (avoids timeline scan limits).
+    if entry_id.startswith("db:"):
+        raw_db_id = entry_id.split(":", 1)[1]
+        try:
+            db_id = int(raw_db_id)
+        except ValueError:
+            return jsonify({"error": "invalid db entry id"}), 400
+
+        _ensure_message_center_db()
+        conn = _get_message_center_connection()
+        try:
+            row = conn.execute("SELECT * FROM message_events WHERE id = ?", (db_id,)).fetchone()
+        finally:
+            conn.close()
+
+        if row:
+            serialized = _serialize_message_event_row(row)
+            serialized["id"] = f"db:{serialized['id']}"
+            target = _normalize_message_timeline_entry(
+                serialized,
+                source="db",
+                file_name="message_events",
+                message_event_id=serialized["id"],
+            )
+
+    # Fall back to timeline scan (covers log-backed entries).
+    if not target:
+        timeline = _build_message_timeline(limit=5000)
+        for entry in timeline:
+            if entry.get("id") == entry_id:
+                target = entry
+                break
+
+    if not target and entry_id:
+        return jsonify({"error": f"entry not found: {entry_id}"}), 404
+
+    target = target or {"mc_path": "/messages"}
+    mc_url = f"{host_url}{target['mc_path']}"
+    text = f"See details in Mission Control: {mc_url}"
+    return jsonify({
+        "entry": target.get("id"),
+        "status_only_text": text,
+        "mc_url": mc_url,
+    })
 
 # ============================================
 # Content Pipeline API Endpoints

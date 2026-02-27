@@ -3,24 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Message Center</title>
+    <title>Mission Control Messages</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='message_center.css') }}">
 </head>
 <body>
     <main class="layout">
         <header class="page-header">
-            <h1>Message Center</h1>
-            <a href="/">Back to Dashboard</a>
+            <div>
+                <h1>Message Center</h1>
+                <p class="subtitle">Unified timeline for agent events and delivery logs.</p>
+            </div>
+            <div class="header-links">
+                <a href="/">Dashboard</a>
+                <a href="/ops">Ops View</a>
+            </div>
         </header>
 
-        <section class="filters">
+        <section class="filters" aria-label="timeline filters">
             <label>
-                Source
-                <select id="filter-source">
-                    <option value="">All</option>
-                    <option value="agent">agent</option>
-                    <option value="job">job</option>
-                </select>
+                Channel
+                <input id="filter-channel" type="text" placeholder="discord, telegram, #ops-errors">
+            </label>
+
+            <label>
+                Agent
+                <input id="filter-agent" type="text" placeholder="embedded, truth, job name">
+            </label>
+
+            <label>
+                Run
+                <input id="filter-run" type="text" placeholder="run_id">
             </label>
 
             <label>
@@ -34,39 +46,44 @@
             </label>
 
             <label>
-                Kind
-                <select id="filter-kind">
+                Delivery
+                <select id="filter-delivery-status">
                     <option value="">All</option>
-                    <option value="delivery_attempt">delivery_attempt</option>
-                    <option value="delivery_success">delivery_success</option>
-                    <option value="delivery_failure">delivery_failure</option>
-                    <option value="rate_limit">rate_limit</option>
-                    <option value="content_output">content_output</option>
+                    <option value="delivered">delivered</option>
+                    <option value="failed">failed</option>
+                    <option value="rate_limited">rate_limited</option>
+                    <option value="unknown">unknown</option>
                 </select>
             </label>
 
             <label>
-                Channel
-                <input id="filter-channel" type="text" placeholder="e.g. #alerts or 123456789">
-            </label>
-
-            <label>
                 Limit
-                <input id="filter-limit" type="number" min="1" max="500" value="100">
+                <input id="filter-limit" type="number" min="1" max="1000" value="200">
             </label>
 
             <button id="apply-filters" type="button">Apply</button>
         </section>
 
         <section class="content-grid">
-            <div class="event-list-wrap">
-                <h2>Events</h2>
+            <div class="timeline-wrap">
+                <div class="panel-header">
+                    <h2>Timeline</h2>
+                    <span id="entry-count" class="entry-count">0</span>
+                </div>
                 <div id="event-list" class="event-list"></div>
             </div>
 
             <div class="event-detail-wrap">
-                <h2>Detail</h2>
-                <div id="event-detail" class="event-detail">Select an event.</div>
+                <div class="panel-header">
+                    <h2>Entry Detail</h2>
+                </div>
+                <div id="event-detail" class="event-detail">Select an entry.</div>
+
+                <div class="status-post-wrap">
+                    <h3>Status-only post</h3>
+                    <p>Use this in Discord instead of full logs.</p>
+                    <pre id="status-post" class="status-post">Select an entry.</pre>
+                </div>
             </div>
         </section>
     </main>

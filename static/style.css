@@ -29,6 +29,39 @@ header {
     padding-bottom: 20px;
 }
 
+.header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.top-nav {
+    display: flex;
+    gap: 8px;
+}
+
+.top-nav a {
+    color: #cbd5e1;
+    text-decoration: none;
+    border: 1px solid #2a3650;
+    background: #1e2a4a;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-family: "SF Mono", Monaco, monospace;
+}
+
+.top-nav a:hover {
+    border-color: #3b82f6;
+    color: #dbeafe;
+}
+
+.top-nav a.active {
+    border-color: #10b981;
+    color: #10b981;
+}
+
 header h1 {
     font-size: 2rem;
     font-weight: 300;
@@ -512,6 +545,15 @@ footer {
         flex-direction: column;
         gap: 10px;
         text-align: center;
+    }
+
+    .header-right {
+        align-items: center;
+    }
+
+    .top-nav {
+        flex-wrap: wrap;
+        justify-content: center;
     }
     
     .bot-grid {
