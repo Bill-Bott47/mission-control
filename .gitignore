@@ -4,5 +4,6 @@ __pycache__/
 *.pyo
 *.log
 *.db
+*.db.bak
 .env
 .DS_Store
