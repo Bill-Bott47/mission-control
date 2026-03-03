@@ -1532,6 +1532,9 @@ def api_kanban_tasks_create():
     col = data.get('column', 'INBOX')
     if col not in KANBAN_COLUMNS:
         col = 'INBOX'
+    priority = data.get('priority', 'medium')
+    if priority not in ('low', 'medium', 'high', 'urgent'):
+        priority = 'medium'
     try:
         conn = _kanban_conn()
         max_pos = conn.execute(
@@ -1546,7 +1549,7 @@ def api_kanban_tasks_create():
                 data.get('description', ''),
                 col,
                 max_pos + 1,
-                data.get('priority', 'medium'),
+                priority,
                 data.get('assigned_agent', ''),
                 data.get('tags', ''),
                 data.get('ai_notes', ''),
@@ -1692,7 +1695,8 @@ Reply in this exact JSON format:
                 "tags": "task",
                 "notes": f"Auto-planned task: {title}"
             })
-    except Exception:
+    except Exception as _ai_err:
+        app.logger.error(f"AI plan error: {_ai_err}")
         text = json.dumps({
             "questions": ["What's the deadline?", "Any dependencies?"],
             "assigned_agent": "main",
