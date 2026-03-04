@@ -1173,31 +1173,52 @@ def api_team():
 
 @app.route('/api/crew-status')
 def api_crew_status():
-    """Return live crew status from gateway sessions."""
-    headers = {"Authorization": f"Bearer {GATEWAY_TOKEN}"}
-    sessions = []
-    online = 0
+    """Return crew status derived from cron job states."""
+    active = 0
+    erroring = 0
     idle = 0
+    agent_statuses = []
     try:
-        resp = requests.get(f"{GATEWAY_URL}/api/sessions", headers=headers, timeout=6)
-        if resp.status_code == 200:
-            payload = resp.json()
-            if isinstance(payload, dict):
-                sessions = payload.get("sessions") or payload.get("items") or payload.get("data") or []
-            elif isinstance(payload, list):
-                sessions = payload
+        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"],
+                                capture_output=True, text=True, timeout=15)
+        if result.returncode == 0:
+            payload = json.loads(result.stdout)
+            jobs = payload.get("jobs", {}).get("jobs", []) if isinstance(payload.get("jobs"), dict) else payload.get("jobs", [])
+            if isinstance(jobs, dict):
+                jobs = jobs.get("jobs", [])
+            # Aggregate by agent
+            agent_map = {}
+            for job in jobs:
+                agent = job.get("agentId", "main")
+                state = job.get("state", {})
+                status = state.get("lastRunStatus", "unknown")
+                if agent not in agent_map:
+                    agent_map[agent] = {"ok": 0, "error": 0, "total": 0}
+                agent_map[agent]["total"] += 1
+                if status == "ok":
+                    agent_map[agent]["ok"] += 1
+                elif status == "error":
+                    agent_map[agent]["error"] += 1
+            for agent, counts in agent_map.items():
+                if counts["error"] > 0:
+                    erroring += 1
+                    agent_statuses.append({"agent": agent, "status": "erroring", **counts})
+                elif counts["ok"] > 0:
+                    active += 1
+                    agent_statuses.append({"agent": agent, "status": "active", **counts})
+                else:
+                    idle += 1
+                    agent_statuses.append({"agent": agent, "status": "idle", **counts})
     except Exception:
-        sessions = []
+        pass
 
-    for session in sessions:
-        status = str(session.get("status", "online")).lower() if isinstance(session, dict) else "online"
-        if status in ("idle", "sleeping"):
-            idle += 1
-        else:
-            online += 1
-
-    total = len(sessions) if sessions else (online + idle)
-    return jsonify({"sessions": sessions, "online": online, "idle": idle, "total": total})
+    return jsonify({
+        "agents": agent_statuses,
+        "active": active,
+        "erroring": erroring,
+        "idle": idle,
+        "total": active + erroring + idle
+    })
 
 
 def _extract_signal_items(text):
@@ -1236,12 +1257,40 @@ def _extract_signal_items(text):
 
 @app.route('/api/signals')
 def api_signals():
-    signals = get_trading_signals()
-    items = _extract_signal_items(signals.get("signals", ""))
+    """Live market signals from pai market-data API + Shark signals."""
+    items = []
+    try:
+        resp = requests.get("http://192.168.1.189:8500/summary", timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            funding = data.get("funding", {}).get("by_asset", {})
+            for asset in ["BTC", "ETH", "SOL", "HYPE", "AVAX", "XRP"]:
+                if asset in funding:
+                    sources = funding[asset]
+                    # Use Hyperliquid rate as primary
+                    hl = sources.get("hyperliquid", {})
+                    rate = hl.get("rate_8h_pct", 0)
+                    price = hl.get("mark_price", 0)
+                    direction = "LONG" if rate >= 0 else "SHORT"
+                    items.append({
+                        "symbol": asset,
+                        "direction": direction,
+                        "price": f"${price:,.0f}" if price > 100 else f"${price:.2f}",
+                        "funding": f"{rate:.4f}%",
+                        "raw": f"{asset} {direction} @ {price} (funding {rate:.4f}%)"
+                    })
+    except Exception:
+        pass
+
+    if not items:
+        # Fallback to file-based signals
+        signals = get_trading_signals()
+        items = _extract_signal_items(signals.get("signals", ""))
+
     return jsonify({
         "items": items,
         "updated_at": datetime.now().isoformat(),
-        "raw": signals.get("signals", ""),
+        "source": "pai-market-api" if items and "price" in items[0] else "file-fallback",
     })
 
 
@@ -1286,23 +1335,53 @@ def api_system_health():
     except Exception:
         error_count = 0
 
-    gateway_status = {}
     gateway_up = False
+    uptime = "unknown"
+    cron_ok = 0
+    cron_err = 0
     try:
-        response = requests.get(
-            f"{GATEWAY_URL}/api/status",
-            headers={"Authorization": f"Bearer {GATEWAY_TOKEN}"},
-            timeout=6
-        )
-        if response.status_code == 200:
-            gateway_status = response.json()
+        result = subprocess.run(["/opt/homebrew/bin/openclaw", "gateway", "status"],
+                                capture_output=True, text=True, timeout=10)
+        if result.returncode == 0 and "running" in result.stdout.lower():
             gateway_up = True
+            for line in result.stdout.splitlines():
+                if "uptime" in line.lower():
+                    uptime = line.split(":", 1)[-1].strip() if ":" in line else line.strip()
     except Exception:
-        gateway_up = False
+        pass
+
+    # Count cron job health from the last run
+    try:
+        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"],
+                                capture_output=True, text=True, timeout=15)
+        if result.returncode == 0:
+            payload = json.loads(result.stdout)
+            jobs = payload.get("jobs", {}).get("jobs", []) if isinstance(payload.get("jobs"), dict) else payload.get("jobs", [])
+            if isinstance(jobs, dict):
+                jobs = jobs.get("jobs", [])
+            for job in jobs:
+                st = job.get("state", {}).get("lastRunStatus", "")
+                if st == "ok":
+                    cron_ok += 1
+                elif st == "error":
+                    cron_err += 1
+    except Exception:
+        pass
+
+    # Check pai status
+    pai_up = False
+    try:
+        resp = requests.get("http://192.168.1.189:8500/summary", timeout=5)
+        pai_up = resp.status_code == 200
+    except Exception:
+        pass
 
     return jsonify({
         "gateway": "up" if gateway_up else "down",
-        "gateway_status": gateway_status,
+        "uptime": uptime,
+        "cron_ok": cron_ok,
+        "cron_errors": cron_err,
+        "pai": "up" if pai_up else "down",
         "errors_24h": error_count,
     })
 
@@ -1310,11 +1389,20 @@ def api_system_health():
 @app.route('/api/cron-jobs-live')
 def api_cron_jobs_live():
     try:
-        result = subprocess.run(["openclaw", "cron", "list", "--json"], capture_output=True, text=True, timeout=8)
+        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"], capture_output=True, text=True, timeout=15)
         if result.returncode != 0:
             return jsonify({"error": result.stderr.strip() or "cron list failed"}), 500
         payload = json.loads(result.stdout)
-        return jsonify({"jobs": payload})
+        # Normalize: openclaw cron list returns {jobs: {jobs: [...], total, ...}}
+        if isinstance(payload, dict) and "jobs" in payload:
+            inner = payload["jobs"]
+            if isinstance(inner, dict) and "jobs" in inner:
+                return jsonify(inner["jobs"])
+            elif isinstance(inner, list):
+                return jsonify(inner)
+        elif isinstance(payload, list):
+            return jsonify(payload)
+        return jsonify(payload)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

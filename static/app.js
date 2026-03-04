@@ -42,9 +42,11 @@ class Dashboard {
         }
 
         const html = items.map(item => {
-            const dirClass = item.direction.toLowerCase();
+            const dirClass = item.direction ? item.direction.toLowerCase() : '';
+            const price = item.price ? ` ${item.price}` : '';
+            const funding = item.funding ? ` (${item.funding})` : '';
             const confidence = item.confidence ? ` ${item.confidence}` : '';
-            return `<div class="ticker-item ${dirClass}">${item.symbol} ${item.direction}${confidence}</div>`;
+            return `<div class="ticker-item ${dirClass}">${item.symbol}${price}${funding}${confidence}</div>`;
         }).join('');
 
         track.innerHTML = html;
@@ -70,25 +72,25 @@ class Dashboard {
     renderCrew(data) {
         const container = document.getElementById('crew-summary');
         const meta = document.getElementById('crew-meta');
-        const online = data.online || 0;
+        const active = data.active || 0;
+        const erroring = data.erroring || 0;
         const idle = data.idle || 0;
-        const total = data.total || (data.sessions ? data.sessions.length : online + idle);
         
-        meta.textContent = `${online} online, ${idle} idle`;
+        meta.textContent = `${active} active, ${erroring} erroring`;
         
         const html = `
             <div class="crew-summary">
                 <div class="crew-row">
-                    <span>Online</span>
-                    <span class="status-pill up">${online}</span>
+                    <span>Active Agents</span>
+                    <span class="status-pill up">${active}</span>
+                </div>
+                <div class="crew-row">
+                    <span>Erroring</span>
+                    <span class="status-pill ${erroring > 0 ? 'down' : 'up'}">${erroring}</span>
                 </div>
                 <div class="crew-row">
                     <span>Idle</span>
                     <span class="status-pill warn">${idle}</span>
-                </div>
-                <div class="crew-row">
-                    <span>Offline</span>
-                    <span class="status-pill down">${Math.max(total - online - idle, 0)}</span>
                 </div>
             </div>
         `;
@@ -117,10 +119,9 @@ class Dashboard {
         const container = document.getElementById('system-health');
         const meta = document.getElementById('health-meta');
         
-        meta.textContent = `${data.errors_24h || 0} errors (24h)`;
-        const gw = data.gateway_status || {};
-        const uptime = gw.uptime || gw.uptimeSeconds || gw.uptime_s || '—';
-        const version = gw.version || gw.build || '—';
+        const cronOk = data.cron_ok || 0;
+        const cronErr = data.cron_errors || 0;
+        meta.textContent = `${cronOk} cron ok, ${cronErr} errors`;
         
         const html = `
             <div class="health-grid">
@@ -129,12 +130,16 @@ class Dashboard {
                     <span class="status-pill ${data.gateway === 'up' ? 'up' : 'down'}">${data.gateway}</span>
                 </div>
                 <div class="health-row">
-                    <span>Uptime</span>
-                    <span class="status-pill">${uptime}</span>
+                    <span>pai (compute)</span>
+                    <span class="status-pill ${data.pai === 'up' ? 'up' : 'down'}">${data.pai || '?'}</span>
                 </div>
                 <div class="health-row">
-                    <span>Version</span>
-                    <span class="status-pill">${version}</span>
+                    <span>Cron Jobs</span>
+                    <span class="status-pill ${cronErr > 0 ? 'warn' : 'up'}">${cronOk} ok / ${cronErr} err</span>
+                </div>
+                <div class="health-row">
+                    <span>Uptime</span>
+                    <span class="status-pill">${data.uptime || '—'}</span>
                 </div>
             </div>
         `;
