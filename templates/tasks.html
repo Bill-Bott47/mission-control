@@ -1,68 +1,58 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Tracker | Mission Control v1</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='tasks.css') }}">
-</head>
-<body>
-    <div class="container tasks-container">
-        <header>
-            <div>
-                <h1>Task Tracker</h1>
-                <div class="timestamp" id="tasks-meta">Loading...</div>
-            </div>
-            <nav class="top-nav" aria-label="Primary navigation">
-                <a href="/">Dashboard</a>
-                <a href="/tasks" class="active">Tasks</a>
-                <a href="/message-center">Message Center</a>
-            </nav>
-        </header>
-
-        <section class="card">
-            <h2>Filters</h2>
-            <div class="tasks-filters">
-                <label>
-                    Status
-                    <select id="filter-status">
-                        <option value="ALL">All</option>
-                    </select>
-                </label>
-                <label>
-                    Priority
-                    <select id="filter-priority">
-                        <option value="ALL">All</option>
-                    </select>
-                </label>
-                <label>
-                    Agent
-                    <select id="filter-agent">
-                        <option value="ALL">All</option>
-                    </select>
-                </label>
-                <label>
-                    Owner
-                    <select id="filter-owner">
-                        <option value="ALL">All</option>
-                    </select>
-                </label>
-                <label class="search">
-                    Search
-                    <input id="filter-search" type="text" placeholder="ID, title, owner, context...">
-                </label>
-            </div>
-        </section>
-
-        <section class="card">
-            <h2>Tasks <span id="task-count"></span></h2>
-            <div id="tasks-table-wrap" class="tasks-table-wrap">
-                <div class="loading">Loading tasks...</div>
-            </div>
-        </section>
+{% extends "base.html" %}
+{% block title %}Tasks — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='tasks.css') }}">
+{% endblock %}
+{% block content %}
+<div class="tasks-container">
+    <div class="page-header">
+        <h1>Task Tracker</h1>
+        <div class="card-meta" id="tasks-meta">Loading...</div>
     </div>
 
-    <script src="{{ url_for('static', filename='tasks.js') }}"></script>
-</body>
-</html>
+    <section class="card" style="margin-bottom: 20px;">
+        <h2 style="margin-bottom: 12px;">Filters</h2>
+        <div class="tasks-filters">
+            <label>
+                Status
+                <select id="filter-status">
+                    <option value="ALL">All</option>
+                </select>
+            </label>
+            <label>
+                Priority
+                <select id="filter-priority">
+                    <option value="ALL">All</option>
+                </select>
+            </label>
+            <label>
+                Agent
+                <select id="filter-agent">
+                    <option value="ALL">All</option>
+                </select>
+            </label>
+            <label>
+                Owner
+                <select id="filter-owner">
+                    <option value="ALL">All</option>
+                </select>
+            </label>
+            <label class="search">
+                Search
+                <input id="filter-search" type="text" placeholder="ID, title, owner, context...">
+            </label>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Tasks <span id="task-count"></span></h2>
+        <div id="tasks-table-wrap" class="tasks-table-wrap">
+            <div class="placeholder">Loading tasks...</div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='tasks.js') }}"></script>
+{% endblock %}

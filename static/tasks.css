@@ -19,12 +19,12 @@
 .tasks-filters input,
 .tasks-filters select {
     width: 100%;
-    background: #1e2a4a;
-    color: #eee;
-    border: 1px solid #2a3650;
-    border-radius: 6px;
+    background: var(--bg-card, #252535);
+    color: var(--text-primary, #F0F0F0);
+    border: 1px solid var(--border-primary, rgba(255,255,255,0.06));
+    border-radius: 8px;
     padding: 9px 10px;
-    font-family: "SF Mono", Monaco, monospace;
+    font-family: inherit;
 }
 
 .tasks-table-wrap {
@@ -39,7 +39,7 @@
 
 .tasks-table th,
 .tasks-table td {
-    border-bottom: 1px solid #2a3650;
+    border-bottom: 1px solid var(--border-primary, rgba(255,255,255,0.06));
     padding: 9px 10px;
     vertical-align: top;
 }
@@ -47,7 +47,7 @@
 .tasks-table th {
     position: sticky;
     top: 0;
-    background: #1e2a4a;
+    background: var(--bg-secondary, #141418);
     text-align: left;
     font-weight: 600;
 }
@@ -57,8 +57,8 @@
 }
 
 .task-id {
-    font-family: "SF Mono", Monaco, monospace;
-    color: #94a3b8;
+    font-family: inherit;
+    color: var(--text-muted, #666680);
     white-space: nowrap;
 }
 
@@ -79,7 +79,7 @@
     line-height: 1.2;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    font-family: "SF Mono", Monaco, monospace;
+    
     border: 1px solid transparent;
     white-space: nowrap;
 }
