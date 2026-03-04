@@ -89,7 +89,82 @@
       },
       "approved": false,
       "killed": true
+    },
+    {
+      "id": "8a30519b-6c0a-47bc-9f96-875ec647c7c1",
+      "topic": "AI agents will be blockchain's primary users",
+      "source": "Discord #trending-content (NEAR co-founder)",
+      "stage": "trending",
+      "created_at": "2026-03-04T17:55:04.119493",
+      "updated_at": "2026-03-04T17:55:04.119493",
+      "content": {
+        "research": "",
+        "script": "",
+        "visual_url": ""
+      },
+      "approved": false,
+      "killed": false
+    },
+    {
+      "id": "32d11c5a-9147-4d65-84e8-e0e08e0e13b4",
+      "topic": "OpenClaw vs Claude Code heats up",
+      "source": "Discord #trending-content",
+      "stage": "trending",
+      "created_at": "2026-03-04T17:55:04.119493",
+      "updated_at": "2026-03-04T17:55:04.119493",
+      "content": {
+        "research": "",
+        "script": "",
+        "visual_url": ""
+      },
+      "approved": false,
+      "killed": false
+    },
+    {
+      "id": "c0b493f6-bb57-4e78-b036-4410eccf0e46",
+      "topic": "Binance vs Coinbase AI wallet wars",
+      "source": "Discord #trending-content",
+      "stage": "trending",
+      "created_at": "2026-03-04T17:55:04.119493",
+      "updated_at": "2026-03-04T17:55:04.119493",
+      "content": {
+        "research": "",
+        "script": "",
+        "visual_url": ""
+      },
+      "approved": false,
+      "killed": false
+    },
+    {
+      "id": "738a157e-3888-40e7-9435-41a7d33173a3",
+      "topic": "Stablecoins as the 'Dollar API' for AI",
+      "source": "Discord #trending-content",
+      "stage": "trending",
+      "created_at": "2026-03-04T17:55:04.119493",
+      "updated_at": "2026-03-04T17:55:04.119493",
+      "content": {
+        "research": "",
+        "script": "",
+        "visual_url": ""
+      },
+      "approved": false,
+      "killed": false
+    },
+    {
+      "id": "0112872d-c8e5-4320-8086-497731a786dd",
+      "topic": "Agency holdcos have AI story, not AI business",
+      "source": "Discord #trending-content",
+      "stage": "trending",
+      "created_at": "2026-03-04T17:55:04.119493",
+      "updated_at": "2026-03-04T17:55:04.119493",
+      "content": {
+        "research": "",
+        "script": "",
+        "visual_url": ""
+      },
+      "approved": false,
+      "killed": false
     }
   ],
-  "last_updated": "2026-02-26T21:09:05.243730"
+  "last_updated": "2026-03-04T17:55:04.119493"
 }
