@@ -1,30 +1,10 @@
 {% extends "base.html" %}
-{% set body_class = "body-full" %}
 {% block title %}Kanban — Mission Control{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='kanban.css') }}">
 {% endblock %}
 {% block content %}
   <div id="app">
-
-    <!-- ── TOP NAV ───────────────────────────────────────────── -->
-    <header class="mc-header">
-      <div class="mc-header-left">
-        <span class="mc-logo">⬡ MISSION CONTROL</span>
-        <span class="mc-version">v2</span>
-      </div>
-      <nav class="mc-nav">
-        <a href="/">Dashboard</a>
-        <a href="/kanban" class="active">Kanban</a>
-        <a href="/tasks">Tasks</a>
-        <a href="/messages">Messages</a>
-        <a href="/ops">Ops</a>
-      </nav>
-      <div class="mc-header-right">
-        <span id="clock" class="mc-clock"></span>
-        <span id="gw-status" class="mc-status-dot" title="Gateway">●</span>
-      </div>
-    </header>
 
     <!-- ── MAIN LAYOUT ──────────────────────────────────────── -->
     <div class="mc-layout">

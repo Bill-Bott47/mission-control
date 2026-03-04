@@ -115,9 +115,11 @@ body {
 
 .main {
   margin-left: 180px;
-  padding: 24px;
+  padding: 24px 32px;
   min-height: 100vh;
   background: var(--bg-primary);
+  width: calc(100vw - 180px);
+  max-width: calc(100vw - 180px);
 }
 
 .body-full .shell { grid-template-columns: 1fr; }
