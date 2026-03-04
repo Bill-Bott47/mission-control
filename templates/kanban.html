@@ -4,99 +4,63 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='kanban.css') }}">
 {% endblock %}
 {% block content %}
-  <div id="app">
+  <div id="app" class="kanban-page">
+    <div class="kanban-layout">
+      <main class="kanban-main">
+        <!-- Stats Bar -->
+        <div class="kanban-stats" id="kanban-stats">
+          <span class="stat-item">0 This week</span>
+          <span class="stat-dot">·</span>
+          <span class="stat-item">0 In progress</span>
+          <span class="stat-dot">·</span>
+          <span class="stat-item">0 Total</span>
+          <span class="stat-dot">·</span>
+          <span class="stat-item">0% Completion</span>
+        </div>
 
-    <!-- ── MAIN LAYOUT ──────────────────────────────────────── -->
-    <div class="mc-layout">
-
-      <!-- LEFT SIDEBAR: Agent Feed + Signals -->
-      <aside class="mc-sidebar">
-
-        <!-- Agent Activity Feed -->
-        <section class="mc-panel" id="agent-feed-panel">
-          <div class="mc-panel-header">
-            <span>⚡ AGENT FEED</span>
-            <div class="mc-panel-actions">
-              <button class="mc-btn-xs" id="btn-discover-agents" title="Discover agents">SCAN</button>
-              <span id="feed-status" class="feed-dot">●</span>
+        <!-- Controls Row -->
+        <div class="kanban-controls">
+          <div class="controls-left">
+            <button class="btn-primary" id="btn-add-task">+ New Task</button>
+            <div class="agent-tabs" id="agent-tabs">
+              <button class="agent-tab active" data-agent="">All</button>
+              <button class="agent-tab" data-agent="main">Bill</button>
+              <button class="agent-tab" data-agent="Scout">Scout</button>
+              <button class="agent-tab" data-agent="Shark">Shark</button>
+              <button class="agent-tab" data-agent="ACE">ACE</button>
+              <button class="agent-tab" data-agent="Quill">Quill</button>
+              <button class="agent-tab" data-agent="Pixel">Pixel</button>
             </div>
           </div>
-          <div id="agent-list" class="agent-list"></div>
-          <div id="agent-feed" class="feed-log"></div>
-        </section>
-
-        <!-- Trading Signals -->
-        <section class="mc-panel" id="signals-panel">
-          <div class="mc-panel-header">
-            <span>📈 SIGNALS</span>
-            <button class="mc-btn-xs" id="btn-refresh-signals">↺</button>
-          </div>
-          <div id="signals-tabs" class="tab-row">
-            <button class="tab-btn active" data-tab="ict">ICT</button>
-            <button class="tab-btn" data-tab="shark">SHARK</button>
-            <button class="tab-btn" data-tab="trades">TRADES</button>
-          </div>
-          <div id="signals-content" class="signals-content"></div>
-        </section>
-
-      </aside>
-
-      <!-- KANBAN BOARD -->
-      <main class="mc-board-container">
-
-        <!-- Board Controls -->
-        <div class="mc-board-controls">
-          <button class="mc-btn" id="btn-add-task">＋ NEW TASK</button>
-          <div class="filter-row">
-            <select id="filter-priority" class="mc-select">
+          <div class="controls-right">
+            <select id="filter-project" class="select-pill">
+              <option value="">All projects</option>
+            </select>
+            <select id="filter-priority" class="select-pill">
               <option value="">All Priority</option>
               <option value="urgent">Urgent</option>
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="low">Low</option>
             </select>
-            <select id="filter-agent" class="mc-select">
-              <option value="">All Agents</option>
-              <option value="main">Bill/Main</option>
-              <option value="Scout">Scout</option>
-              <option value="Shark">Shark</option>
-              <option value="ACE">ACE</option>
-              <option value="Quill">Quill</option>
-              <option value="Pixel">Pixel</option>
-            </select>
-            <input type="text" id="filter-search" class="mc-input-sm" placeholder="Search..." />
+            <input type="text" id="filter-search" class="search-input" placeholder="Search..." />
+            <input type="hidden" id="filter-agent" value="" />
           </div>
-          <span id="board-stats" class="board-stats"></span>
         </div>
 
         <!-- Board -->
-        <div class="mc-board" id="kanban-board">
+        <div class="kanban-board" id="kanban-board">
           <!-- Columns injected by JS -->
         </div>
-
       </main>
 
-      <!-- RIGHT SIDEBAR: Content Pipeline -->
-      <aside class="mc-sidebar mc-sidebar-right">
-        <section class="mc-panel" id="content-panel">
-          <div class="mc-panel-header">
-            <span>📝 CONTENT PIPELINE</span>
-            <button class="mc-btn-xs" id="btn-refresh-content">↺</button>
-          </div>
-          <div id="content-tabs" class="tab-row">
-            <button class="tab-btn active" data-ctab="all">ALL</button>
-            <button class="tab-btn" data-ctab="draft">DRAFT</button>
-            <button class="tab-btn" data-ctab="scheduled">SCHED</button>
-            <button class="tab-btn" data-ctab="published">LIVE</button>
-          </div>
-          <div id="content-stats" class="content-stats"></div>
-          <div id="content-list" class="content-list"></div>
-        </section>
+      <!-- Live Activity Panel -->
+      <aside class="kanban-activity">
+        <div class="activity-header">Live Activity</div>
+        <div class="activity-list" id="activity-list"></div>
       </aside>
-
-    </div><!-- end mc-layout -->
-
-  </div><!-- end #app -->
+    </div>
+  </div>
 
   <!-- ── NEW TASK MODAL ──────────────────────────────────────── -->
   <div id="modal-overlay" class="modal-overlay hidden">
@@ -120,7 +84,6 @@
             <select id="task-column" class="mc-select">
               <option value="INBOX">INBOX</option>
               <option value="PLANNING">PLANNING</option>
-              <option value="ASSIGNED">ASSIGNED</option>
               <option value="IN PROGRESS">IN PROGRESS</option>
               <option value="TESTING">TESTING</option>
               <option value="REVIEW">REVIEW</option>
