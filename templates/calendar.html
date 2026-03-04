@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Calendar — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='calendar.css') }}">
+{% endblock %}
+{% block content %}
+<header class="page-header">
+    <h1>Calendar</h1>
+    <div class="calendar-controls">
+        <button class="btn btn-primary" id="refresh-calendar">Refresh Jobs</button>
+    </div>
+</header>
+
+<div class="calendar-container" id="calendar-container">
+    <div class="placeholder">Loading cron jobs...</div>
+</div>
+
+<div class="always-running-section">
+    <h2>Always Running</h2>
+    <div class="running-jobs" id="running-jobs">
+        <div class="placeholder">Loading high-frequency jobs...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='calendar.js') }}"></script>
+{% endblock %}

@@ -49,7 +49,7 @@
       "id": "31a8a0e6-0bf2-4ee7-9870-a219ca1ae3b3",
       "topic": "Colony shuts down after 5 years on AVAX \u2014 what it signals for L1 ecosystems",
       "source": "Scrub/X-@Colonylab-2026-02-26",
-      "stage": "killed",
+      "stage": "approved",
       "created_at": "2026-02-26T20:42:56.793130",
       "updated_at": "2026-02-26T20:47:27.368386",
       "content": {
@@ -58,15 +58,15 @@
         "visual_url": ""
       },
       "approved": true,
-      "killed": true
+      "killed": false
     },
     {
       "id": "55ce16c3-6c2c-45bf-b327-d66febe034a4",
       "topic": "DeFi protocols that built community-first won. Here is the playbook.",
       "source": "Scrub/X-@LFJ-DeFi-2026-02-26",
-      "stage": "script",
+      "stage": "approved",
       "created_at": "2026-02-26T20:43:07.649794",
-      "updated_at": "2026-02-26T21:09:05.243718",
+      "updated_at": "2026-02-26T21:08:37.561697",
       "content": {
         "research": "DeFi/DEX trend score 59/100. LFJ: $40.7B volume, $29.3M fees, $3.9M to JOE holders. Community-led liquidity is the moat.",
         "script": "# QUILL DRAFT \u2014 DeFi Community Playbook\n**Date:** 2026-02-26 | **Trend Score:** 59/100 | **Source:** @LFJ_exchange, @blaze_stream X feed\n**Platform:** X/Twitter (primary) \u2192 LinkedIn (secondary)\n**Pipeline ID:** 55ce16c3\n\n---\n\n## HOOKS (pick one)\n\n**Hook A \u2014 Data Lead**\nLFJ did $40.7 billion in volume last year.\n$29.3M in fees. $3.9M back to $JOE holders.\nThey never stopped shipping. Not once.\nThere's a lesson here that most DeFi teams are ignoring.\n\n**Hook B \u2014 Contrarian**\nEveryone talks about TVL.\nNobody talks about the community that decides to actually use the protocol.\nLFJ figured this out. Most didn't.\n\n**Hook C \u2014 Phoenix Lens**\nIn web3, the protocol IS the product.\nThe community IS the distribution.\nLFJ did $40B+ in volume by treating their holders like owners.\nHere's what the community-first DeFi playbook actually looks like.\n\n---\n\n## PRIMARY DRAFT \u2014 5-Tweet Thread\n\n**1/**\nDeFi protocols that won in 2025 had one thing in common:\n\nThey built community like it was infrastructure.\n\nLFJ: $40.7B volume. $29.3M fees. $3.9M directly to $JOE holders.\n\nThat last number is the important one.\n\n---\n\n**2/**\nMost DeFi protocols extract value from their community.\nLFJ distributes it.\n\nRevenue to holders = alignment.\nAlignment = retention.\nRetention = the moat that doesn't show up on a VC term sheet.\n\n---\n\n**3/**\nWeb3 community retention is the highest in any industry when done right.\n\nWhy? Token holders have skin in the game.\n\nThey're not users. They're co-owners.\nThat's why NFT communities outperform subscription products 10:1 on long-term engagement.\n\n---\n\n**4/**\nThe playbook:\n\n\u2192 Make holders feel like insiders, not customers\n\u2192 Ship consistently (LFJ never stopped in 2025)\n\u2192 Distribute revenue, not just governance tokens\n\u2192 Build utility the community actually wanted, not what you thought they wanted\n\nSimple. Almost nobody does all four.\n\n---\n\n**5/**\nPhoenix builds the community OS for protocols doing this right.\n\nWe've worked inside AVAX ecosystem projects long enough to know:\nThe teams that win aren't the ones with the best tech.\n\nThey're the ones that made their community feel like they couldn't leave.\n\nIf that's the problem you're solving, let's talk.\n\n---\n\n## ALTERNATE DRAFT \u2014 Single Post\n\nLFJ's 2025 numbers:\n- $40.7B volume\n- $29.3M fees\n- $3.9M distributed to $JOE holders\n\nThe last number is what separates a protocol from a community.\n\nMost DeFi teams are still building extraction machines.\nThe ones distributing value to holders are building retention machines.\n\nDifferent product. Different result. Different company in 3 years.\n\n---\n\n## CTAs (pick one)\n\n**CTA A (debate):** Which DeFi protocol do you think has the best community-product alignment right now? Genuine question.\n**CTA B (soft sell):** We help web3 protocols build community systems that turn users into owners. If that's your Q2 problem, DM me.\n**CTA C (reframe):** Screenshot tweet 3 if you're building any kind of token-gated product. The retention data is wild.\n\n---\n\n## RATIONALE\n\nThis is a slightly evergreen topic made timely by LFJ's 2025 numbers (fresh data hook). Strong Phoenix positioning without being salesy \u2014 the thread teaches first, pitches last. Works as a standalone thread or as a follow-up to the Colony post (ecosystem chaos \u2192 but here's what works). Recommend posting this 24-48h after the Colony thread.\n\n**Hook C** is cleanest for Phoenix brand. **CTA B** for pipeline.\n",
@@ -91,5 +91,5 @@
       "killed": true
     }
   ],
-  "last_updated": "2026-02-26T21:09:05.243730"
+  "last_updated": "2026-02-26T21:09:05.208444"
 }

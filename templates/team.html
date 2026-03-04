@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Team — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='team.css') }}">
+{% endblock %}
+{% block content %}
+<header class="page-header">
+    <h1>Your Crew</h1>
+    <div class="team-stats">
+        <span class="stat-item">{{ agents|length }} agents</span>
+        <span class="stat-item">{{ agents|selectattr('status', 'equalto', 'online')|list|length }} online</span>
+        <span class="stat-item">{{ agents|selectattr('status', 'equalto', 'idle')|list|length }} idle</span>
+    </div>
+</header>
+
+<div class="team-grid">
+    {% for agent in agents %}
+    <div class="agent-card status-{{ agent.status }}">
+        <div class="agent-header">
+            <div class="agent-avatar">{{ agent.emoji }}</div>
+            <div class="agent-info">
+                <div class="agent-name">{{ agent.name }}</div>
+                <div class="agent-role">{{ agent.role }}</div>
+            </div>
+            <div class="agent-status">
+                <div class="status-indicator"></div>
+                <span class="status-text">{{ agent.status }}</span>
+            </div>
+        </div>
+        
+        <div class="agent-meta">
+            <div class="agent-notes">{{ agent.notes }}</div>
+            <div class="agent-activity">Last active: {{ agent.last_active }}</div>
+        </div>
+        
+        {% if agent.prompt_file %}
+        <div class="agent-actions">
+            <a href="/agents/{{ agent.slug }}/prompt" target="_blank" class="action-link">
+                📄 View prompt
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<section class="process-section">
+    <h2>Process Rules</h2>
+    <div class="process-grid">
+        <div class="process-rule">
+            <strong>Code:</strong> All code → Bob → Forge review loop until PASS → test → deploy
+        </div>
+        <div class="process-rule">
+            <strong>Commitments:</strong> Truth tracks and verifies all commitments
+        </div>
+        <div class="process-rule">
+            <strong>Verification:</strong> No fake grades. Use live commands — never trust cached data.
+        </div>
+        <div class="process-rule">
+            <strong>Sub-agents:</strong> If it takes >5 seconds, spawn it as a sub-agent
+        </div>
+    </div>
+</section>
+
+<section class="escalation-section">
+    <h2>Escalation Rules</h2>
+    <div class="escalation-grid">
+        <div class="escalation-item">
+            <strong>1 Forge FAIL:</strong> Fix and resubmit. Normal flow.
+        </div>
+        <div class="escalation-item">
+            <strong>2 consecutive FAILs:</strong> Flag Jonathan before third attempt.
+        </div>
+        <div class="escalation-item">
+            <strong>Security/Financial:</strong> Halt immediately, notify Jonathan.
+        </div>
+        <div class="escalation-item">
+            <strong>Truth flags 3×:</strong> Stop, reassess, document root cause.
+        </div>
+    </div>
+</section>
+{% endblock %}

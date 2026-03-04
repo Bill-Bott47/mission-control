@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Roster — Mission Control</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            padding: 0;
+        }
+        .agent-card {
+            background: var(--card-bg, #1a1a2e);
+            border: 1px solid var(--border, #333);
+            border-radius: 8px;
+            padding: 18px 20px;
+            transition: border-color 0.2s;
+        }
+        .agent-card:hover {
+            border-color: #4a9eff;
+        }
+        .agent-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .agent-emoji {
+            font-size: 28px;
+            line-height: 1;
+        }
+        .agent-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+        .agent-role {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        .agent-notes {
+            font-size: 12px;
+            color: #666;
+            font-style: italic;
+            border-top: 1px solid #2a2a3e;
+            padding-top: 8px;
+            margin-top: 8px;
+        }
+        .agent-prompt-link {
+            display: inline-block;
+            margin-top: 8px;
+            font-size: 11px;
+            color: #4a9eff;
+            text-decoration: none;
+        }
+        .agent-prompt-link:hover { text-decoration: underline; }
+        .roster-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .roster-header h2 {
+            margin: 0;
+            font-size: 22px;
+            color: #e0e0e0;
+        }
+        .agent-count-badge {
+            background: #4a9eff22;
+            border: 1px solid #4a9eff44;
+            border-radius: 12px;
+            padding: 4px 12px;
+            font-size: 13px;
+            color: #4a9eff;
+        }
+        .process-card {
+            background: var(--card-bg, #1a1a2e);
+            border: 1px solid #2a4a2a;
+            border-radius: 8px;
+            padding: 18px 20px;
+            margin-bottom: 20px;
+        }
+        .process-card h3 {
+            margin: 0 0 10px;
+            color: #4aff9e;
+            font-size: 15px;
+        }
+        .process-card ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #aaa;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+        .escalation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .escalation-item {
+            background: #0d0d1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: #999;
+        }
+        .escalation-item strong { color: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Mission Control</h1>
+            <div class="header-right">
+                <nav class="top-nav" aria-label="Primary navigation">
+                    <a href="/">Dashboard</a>
+                    <a href="/kanban">Kanban</a>
+                    <a href="/agents" class="active">Agents</a>
+                    <a href="/tasks">Tasks</a>
+                    <a href="/messages">Messages</a>
+                    <a href="/ops">Ops</a>
+                </nav>
+            </div>
+        </header>
+
+        <div class="process-card">
+            <h3>⚙️ Process Rules</h3>
+            <ul>
+                <li>All code → <strong>Bob</strong> → Forge review loop until PASS → test → deploy</li>
+                <li>All commitments → <strong>Truth</strong> tracks and verifies</li>
+                <li>No fake grades. No shortcuts. Verify with live commands — never trust cached data.</li>
+                <li>If it takes &gt;5 seconds, spawn it as a sub-agent.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <div class="roster-header">
+                <h2>🤖 Agent Roster</h2>
+                <span class="agent-count-badge">{{ agents|length }} agents</span>
+            </div>
+            <div class="agents-grid">
+                {% for agent in agents %}
+                <div class="agent-card">
+                    <div class="agent-header">
+                        <span class="agent-emoji">{{ agent.emoji }}</span>
+                        <span class="agent-name">{{ agent.name }}</span>
+                    </div>
+                    <div class="agent-role">{{ agent.task }}</div>
+                    {% if agent.notes %}
+                    <div class="agent-notes">{{ agent.notes }}</div>
+                    {% endif %}
+                    {% if agent.prompt_file %}
+                    <a class="agent-prompt-link" href="/agents/{{ agent.slug }}/prompt" target="_blank">📄 View prompt</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h2>🚨 Escalation Rules</h2>
+            <div class="escalation-grid">
+                <div class="escalation-item"><strong>1 Forge FAIL:</strong> Fix and resubmit. Normal flow.</div>
+                <div class="escalation-item"><strong>2 consecutive FAILs:</strong> Flag Jonathan before third attempt.</div>
+                <div class="escalation-item"><strong>Security / financial risk:</strong> Halt immediately, notify Jonathan.</div>
+                <div class="escalation-item"><strong>Truth flags same issue 3×:</strong> Stop, reassess, document root cause.</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h2>📋 Audit Trails</h2>
+            <div class="escalation-grid">
+                <div class="escalation-item"><strong>Forge reviews:</strong> audits/forge-reviews.md</div>
+                <div class="escalation-item"><strong>Truth reports:</strong> audits/truth-reports.md</div>
+                <div class="escalation-item"><strong>Sub-agent tasks:</strong> audits/subagent-log.md</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

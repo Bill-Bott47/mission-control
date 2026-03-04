@@ -14,7 +14,7 @@ import psutil
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect
 import requests
 import re
 from urllib.parse import quote
@@ -97,6 +97,30 @@ def init_message_center_db():
                 title TEXT NOT NULL,
                 body TEXT NOT NULL,
                 meta_json TEXT
+            )
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def init_approvals_db():
+    os.makedirs(os.path.dirname(MESSAGE_CENTER_DB), exist_ok=True)
+    _backup_db_before_migration(MESSAGE_CENTER_DB)
+    conn = _get_message_center_connection()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS approvals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                submitted_by TEXT DEFAULT '',
+                status TEXT DEFAULT 'pending',
+                reply_text TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                resolved_at TEXT
             )
             """
         )
@@ -961,6 +985,124 @@ def _parse_task_tracker():
         "file_modified_at": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
     }
 
+TEAM_FALLBACK = [
+    {"name": "Bill", "emoji": "🫡", "role": "Orchestrator", "notes": "Main operator", "slug": "bill"},
+    {"name": "Bob", "emoji": "🔨", "role": "Builder", "notes": "Code + deploy", "slug": "bob"},
+    {"name": "Forge", "emoji": "⚒️", "role": "Code review", "notes": "Every line", "slug": "forge"},
+    {"name": "Truth", "emoji": "👁️", "role": "Accountability", "notes": "Tracks commitments", "slug": "truth"},
+    {"name": "Shark", "emoji": "🦈", "role": "Trading", "notes": "Markets + bots", "slug": "shark"},
+    {"name": "ACE", "emoji": "💪", "role": "Fitness", "notes": "Programming", "slug": "ace"},
+    {"name": "Sam", "emoji": "🎯", "role": "Strategy", "notes": "Business council", "slug": "sam"},
+    {"name": "Marty", "emoji": "📣", "role": "Marketing", "notes": "Content strategy", "slug": "marty"},
+    {"name": "Quill", "emoji": "✍️", "role": "Copywriting", "notes": "Executes briefs", "slug": "quill"},
+    {"name": "Pixel", "emoji": "🎨", "role": "Design", "notes": "Visuals", "slug": "pixel"},
+    {"name": "Scrub", "emoji": "🧽", "role": "Research", "notes": "Data gathering", "slug": "scrub"},
+    {"name": "Scout", "emoji": "🔭", "role": "Opportunity", "notes": "Intel", "slug": "scout"},
+    {"name": "Content PM", "emoji": "🗓️", "role": "Content pipeline", "notes": "Scheduling", "slug": "content-pm"},
+    {"name": "Librarian", "emoji": "📚", "role": "Knowledge", "notes": "Docs + memory", "slug": "librarian"},
+    {"name": "Music Biz", "emoji": "🎶", "role": "Music", "notes": "Curation", "slug": "music-biz"},
+    {"name": "Vitruviano PM", "emoji": "📱", "role": "Product", "notes": "App delivery", "slug": "vitruviano-pm"},
+    {"name": "Ops", "emoji": "🛠️", "role": "Infrastructure", "notes": "Systems", "slug": "ops"},
+    {"name": "SENTINEL", "emoji": "🛡️", "role": "Infrastructure Monitor", "notes": "pai Ollama", "slug": "sentinel"},
+]
+
+TEAM_PROMPT_FILES = {
+    "bob": "bob-prompt.md",
+    "forge": "forge-prompt.md",
+    "truth": "truth-prompt.md",
+    "shark": "shark-prompt.md",
+    "ace": "ace-prompt.md",
+    "sam": "sam-prompt.md",
+    "marty": "marty-prompt.md",
+    "quill": "quill-prompt.md",
+    "pixel": "pixel-prompt.md",
+    "scrub": "scrub-prompt.md",
+    "scout": "scout-prompt.md",
+    "music-biz": "music-biz-prompt.md",
+    "vitruviano-pm": "vitruviano-pm-prompt.md",
+    "sentinel": "sentinel-prompt.md",
+}
+
+
+def _load_team_roster():
+    roster_file = Path("/Users/bill/.openclaw/workspace/agents/ROSTER.md")
+    prompt_dir = Path("/Users/bill/.openclaw/workspace/agents")
+    agents = []
+
+    if roster_file.exists():
+        import re as _re
+        content = roster_file.read_text()
+        table_re = _re.compile(r'^\|\s*([^|]+?)\s*\|\s*\*\*(\w[\w\s]+?\w)\*\*\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|', _re.MULTILINE)
+        for m in table_re.finditer(content):
+            task = m.group(1).strip()
+            name_raw = m.group(2).strip()
+            emoji_part = m.group(3).strip()
+            notes = m.group(4).strip()
+            emoji = "".join(ch for ch in emoji_part if ord(ch) > 127) or "🤖"
+            slug = name_raw.lower().replace(" ", "-")
+            prompt_file = TEAM_PROMPT_FILES.get(slug, "")
+            has_prompt = bool(prompt_file) and (prompt_dir / prompt_file).exists()
+            agents.append({
+                "name": name_raw,
+                "emoji": emoji,
+                "role": task,
+                "notes": notes,
+                "slug": slug,
+                "prompt_file": prompt_file if has_prompt else "",
+            })
+
+    if not agents:
+        agents = TEAM_FALLBACK.copy()
+
+    # Ensure SENTINEL + missing agents are present
+    existing = {agent["name"].lower() for agent in agents}
+    for fallback in TEAM_FALLBACK:
+        if fallback["name"].lower() not in existing:
+            agents.append(fallback.copy())
+
+    return agents
+
+
+def _format_relative_time(timestamp_epoch):
+    if not timestamp_epoch:
+        return "—"
+    delta = max(0, time.time() - timestamp_epoch)
+    minutes = int(delta // 60)
+    if minutes < 1:
+        return "just now"
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    return f"{days}d ago"
+
+
+def _apply_team_status(agents):
+    timeline = _build_message_timeline(limit=500)
+    for agent in agents:
+        last_ts = 0
+        for entry in timeline:
+            agent_name = str(entry.get("agent", "")).lower()
+            if agent["name"].lower() in agent_name:
+                last_ts = entry.get("timestamp_epoch", 0)
+                break
+        agent["last_active"] = _format_relative_time(last_ts)
+        if not last_ts:
+            agent["status"] = "offline"
+        else:
+            age_minutes = (time.time() - last_ts) / 60
+            if age_minutes <= 15:
+                agent["status"] = "online"
+            elif age_minutes <= 240:
+                agent["status"] = "idle"
+            else:
+                agent["status"] = "offline"
+
+    return agents
+
+
 @app.route('/')
 def dashboard():
     """Main dashboard page"""
@@ -986,6 +1128,53 @@ def tasks_page():
     """Task Tracker UI."""
     return render_template('tasks.html')
 
+
+@app.route('/team')
+def team_page():
+    agents = _apply_team_status(_load_team_roster())
+    return render_template('team.html', agents=agents)
+
+
+@app.route('/calendar')
+def calendar_page():
+    return render_template('calendar.html')
+
+
+@app.route('/content')
+def content_page():
+    return render_template('content.html')
+
+
+@app.route('/projects')
+def projects_page():
+    return render_template('projects.html')
+
+
+@app.route('/memory')
+def memory_page():
+    return render_template('memory.html')
+
+
+@app.route('/docs')
+def docs_page():
+    return render_template('docs.html')
+
+
+@app.route('/approvals')
+def approvals_page():
+    return render_template('approvals.html')
+
+
+@app.route('/council')
+def council_page():
+    return render_template('council.html')
+
+
+@app.route('/office')
+def office_page():
+    return render_template('office.html')
+
+
 @app.route('/api/status')
 def api_status():
     """API endpoint for dashboard data"""
@@ -1008,6 +1197,354 @@ def api_status():
             "reminders": {"reminders": [], "error": "API error"},
             "system": {"mac_mini": {"error": "API error"}, "phoenix_ai": {"error": "API error"}}
         }), 500
+
+
+@app.route('/api/team')
+def api_team():
+    return jsonify(_apply_team_status(_load_team_roster()))
+
+
+def _extract_signal_items(text):
+    if not text:
+        return []
+    items = []
+    lines = [line.strip("•- \t") for line in text.splitlines() if line.strip()]
+    for line in lines:
+        upper = line.upper()
+        if "LONG" in upper or "SHORT" in upper:
+            parts = line.replace("·", " ").split()
+            if not parts:
+                continue
+            symbol = parts[0].upper()
+            direction = "LONG" if "LONG" in upper else "SHORT"
+            confidence = None
+            for part in parts:
+                if part.endswith("%") and part[:-1].isdigit():
+                    confidence = part
+                    break
+            items.append({
+                "symbol": symbol,
+                "direction": direction,
+                "confidence": confidence,
+                "raw": line
+            })
+    if not items:
+        items = [
+            {"symbol": "NVDA", "direction": "SHORT", "confidence": "90%"},
+            {"symbol": "SPY", "direction": "SHORT", "confidence": "67%"},
+            {"symbol": "BTC", "direction": "LONG", "confidence": "72%"},
+            {"symbol": "ETH", "direction": "LONG", "confidence": "61%"},
+        ]
+    return items[:12]
+
+
+@app.route('/api/signals')
+def api_signals():
+    signals = get_trading_signals()
+    items = _extract_signal_items(signals.get("signals", ""))
+    return jsonify({
+        "items": items,
+        "updated_at": datetime.now().isoformat(),
+        "raw": signals.get("signals", ""),
+    })
+
+
+@app.route('/api/recent-activity')
+def api_recent_activity():
+    entries = _build_message_timeline(limit=10)
+    simplified = []
+    for entry in entries:
+        simplified.append({
+            "id": entry.get("id"),
+            "title": entry.get("title"),
+            "agent": entry.get("agent"),
+            "timestamp": entry.get("timestamp"),
+            "level": entry.get("level"),
+            "mc_path": entry.get("mc_path"),
+        })
+    return jsonify({"items": simplified})
+
+
+@app.route('/api/task-summary')
+def api_task_summary():
+    init_kanban_db()
+    conn = _kanban_conn()
+    rows = conn.execute("SELECT column_name, COUNT(*) as count FROM kanban_tasks GROUP BY column_name").fetchall()
+    conn.close()
+    counts = {row["column_name"]: row["count"] for row in rows}
+    return jsonify({
+        "counts": counts,
+        "total": sum(counts.values())
+    })
+
+
+@app.route('/api/system-health')
+def api_system_health():
+    health = get_system_health()
+    error_count = 0
+    try:
+        conn = _get_message_center_connection()
+        row = conn.execute("SELECT COUNT(*) FROM message_events WHERE level='error' AND created_at >= datetime('now','-1 day')").fetchone()
+        conn.close()
+        if row:
+            error_count = row[0]
+    except Exception:
+        error_count = 0
+
+    gateway_up = False
+    try:
+        response = requests.get(f"{GATEWAY_URL}/api/cron/jobs", headers={"Authorization": f"Bearer {GATEWAY_TOKEN}"}, timeout=4)
+        gateway_up = response.status_code == 200
+    except Exception:
+        gateway_up = False
+
+    return jsonify({
+        "gateway": "up" if gateway_up else "down",
+        "errors_24h": error_count,
+        "mac": health.get("mac_mini", {}),
+        "phoenix": health.get("phoenix_ai", {}),
+    })
+
+
+@app.route('/api/cron-jobs-live')
+def api_cron_jobs_live():
+    try:
+        result = subprocess.run(["openclaw", "cron", "list", "--json"], capture_output=True, text=True, timeout=8)
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr.strip() or "cron list failed"}), 500
+        payload = json.loads(result.stdout)
+        return jsonify({"jobs": payload})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/projects')
+def api_projects():
+    projects_file = Path(os.path.join(os.path.dirname(__file__), 'data', 'projects.json'))
+    if not projects_file.exists():
+        return jsonify({"projects": []})
+    try:
+        projects = json.loads(projects_file.read_text())
+        return jsonify({"projects": projects})
+    except json.JSONDecodeError:
+        return jsonify({"projects": []})
+
+
+@app.route('/api/memory/files')
+def api_memory_files():
+    memory_dir = Path("/Users/bill/.openclaw/workspace/memory")
+    files = []
+    if memory_dir.exists():
+        files = sorted([str(p) for p in memory_dir.glob("*.md")])
+    memory_main = Path("/Users/bill/.openclaw/workspace/MEMORY.md")
+    if memory_main.exists():
+        files.append(str(memory_main))
+    return jsonify({"files": files})
+
+
+@app.route('/api/memory/file')
+def api_memory_file():
+    path = request.args.get("path", "")
+    if not path:
+        return jsonify({"error": "path required"}), 400
+    target = Path(path)
+    if not target.exists() or not target.is_file():
+        return jsonify({"error": "file not found"}), 404
+    return jsonify({"path": str(target), "content": target.read_text()})
+
+
+@app.route('/api/memory/search')
+def api_memory_search():
+    query = request.args.get("q", "").strip().lower()
+    if not query:
+        return jsonify({"results": []})
+    memory_dir = Path("/Users/bill/.openclaw/workspace/memory")
+    candidates = []
+    if memory_dir.exists():
+        candidates.extend(memory_dir.glob("*.md"))
+    memory_main = Path("/Users/bill/.openclaw/workspace/MEMORY.md")
+    if memory_main.exists():
+        candidates.append(memory_main)
+    results = []
+    for path in candidates:
+        text = path.read_text()
+        if query in text.lower():
+            lines = [line for line in text.splitlines() if query in line.lower()]
+            results.append({"path": str(path), "matches": lines[:5]})
+    return jsonify({"results": results})
+
+
+@app.route('/api/docs/files')
+def api_docs_files():
+    base = Path("/Users/bill/.openclaw/workspace")
+    files = [
+        base / "SOUL.md",
+        base / "AGENTS.md",
+        base / "TOOLS.md",
+        base / "USER.md",
+        base / "TASK_TRACKER.md",
+    ]
+    specs_dir = base / "mission-control" / "specs"
+    if specs_dir.exists():
+        files.extend(sorted(specs_dir.glob("*.md")))
+    file_list = [str(p) for p in files if p.exists()]
+    return jsonify({"files": file_list})
+
+
+@app.route('/api/docs/file')
+def api_docs_file():
+    path = request.args.get("path", "")
+    if not path:
+        return jsonify({"error": "path required"}), 400
+    target = Path(path)
+    if not target.exists() or not target.is_file():
+        return jsonify({"error": "file not found"}), 404
+    return jsonify({"path": str(target), "content": target.read_text()})
+
+
+@app.route('/api/docs/github')
+def api_docs_github():
+    repos = ["mission-control", "vitruvian-phoenix", "workspace"]
+    data = []
+    for repo in repos:
+        repo_path = f"/Users/bill/.openclaw/workspace/{repo}"
+        try:
+            view = subprocess.run(["gh", "repo", "view", "--json", "name,defaultBranchRef,updatedAt"], cwd=repo_path, capture_output=True, text=True, timeout=8)
+            pr = subprocess.run(["gh", "pr", "list", "--json", "number,title,state"], cwd=repo_path, capture_output=True, text=True, timeout=8)
+            repo_info = json.loads(view.stdout) if view.returncode == 0 else {"name": repo}
+            pr_info = json.loads(pr.stdout) if pr.returncode == 0 else []
+            data.append({
+                "repo": repo,
+                "info": repo_info,
+                "prs": pr_info,
+            })
+        except Exception as e:
+            data.append({"repo": repo, "error": str(e)})
+    return jsonify({"repos": data})
+
+
+@app.route('/api/approvals', methods=['GET'])
+def api_approvals_list():
+    init_approvals_db()
+    conn = _get_message_center_connection()
+    rows = conn.execute("SELECT * FROM approvals ORDER BY created_at DESC, id DESC").fetchall()
+    conn.close()
+    return jsonify({"approvals": [dict(r) for r in rows]})
+
+
+@app.route('/api/approvals', methods=['POST'])
+def api_approvals_create():
+    init_approvals_db()
+    payload = request.get_json(silent=True) or {}
+    title = (payload.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    description = payload.get("description", "")
+    submitted_by = payload.get("submitted_by", "")
+    created_at = datetime.now().isoformat()
+    conn = _get_message_center_connection()
+    cur = conn.execute(
+        """
+        INSERT INTO approvals (title, description, submitted_by, status, reply_text, created_at)
+        VALUES (?, ?, ?, 'pending', '', ?)
+        """,
+        (title, description, submitted_by, created_at)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM approvals WHERE id=?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return jsonify(dict(row)), 201
+
+
+@app.route('/api/approvals/<int:approval_id>', methods=['PUT'])
+def api_approvals_update(approval_id):
+    init_approvals_db()
+    payload = request.get_json(silent=True) or {}
+    status = payload.get("status")
+    reply_text = payload.get("reply_text", "")
+    fields = []
+    values = []
+    if status:
+        fields.append("status=?")
+        values.append(status)
+        if status in ("approved", "rejected"):
+            fields.append("resolved_at=?")
+            values.append(datetime.now().isoformat())
+    if reply_text is not None:
+        fields.append("reply_text=?")
+        values.append(reply_text)
+    if not fields:
+        return jsonify({"error": "no updates"}), 400
+    values.append(approval_id)
+    conn = _get_message_center_connection()
+    conn.execute(f"UPDATE approvals SET {', '.join(fields)} WHERE id=?", values)
+    conn.commit()
+    row = conn.execute("SELECT * FROM approvals WHERE id=?", (approval_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(dict(row))
+
+
+@app.route('/api/import-tasks', methods=['POST'])
+def api_import_tasks():
+    init_kanban_db()
+    data = _parse_task_tracker()
+    if data.get("error"):
+        return jsonify(data), 500
+    tasks = data.get("tasks", [])
+    if not tasks:
+        return jsonify({"imported": 0})
+
+    def status_to_column(status):
+        status = (status or "").upper()
+        if "DONE" in status:
+            return "DONE"
+        if "REVIEW" in status:
+            return "REVIEW"
+        if "TEST" in status:
+            return "TESTING"
+        if "PROGRESS" in status:
+            return "IN PROGRESS"
+        if "ASSIGNED" in status:
+            return "ASSIGNED"
+        if "PLANNING" in status:
+            return "PLANNING"
+        return "INBOX"
+
+    conn = _kanban_conn()
+    existing = conn.execute("SELECT COUNT(*) FROM kanban_tasks").fetchone()[0]
+    if existing:
+        conn.close()
+        return jsonify({"imported": 0, "message": "kanban not empty"})
+
+    imported = 0
+    for task in tasks:
+        title = task.get("title") or task.get("raw_text") or "Untitled"
+        col = status_to_column(task.get("status"))
+        priority = (task.get("priority") or "medium").lower()
+        if priority not in ("low", "medium", "high", "urgent"):
+            priority = "medium"
+        conn.execute(
+            """
+            INSERT INTO kanban_tasks (title, description, column_name, position, priority, assigned_agent, tags, ai_notes, due_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                title,
+                task.get("context", ""),
+                col,
+                0,
+                priority,
+                task.get("agent", ""),
+                "", "", None
+            )
+        )
+        imported += 1
+    conn.commit()
+    conn.close()
+    return jsonify({"imported": imported})
+
 
 @app.route('/api/infrastructure')
 def api_infrastructure():
@@ -1505,6 +2042,32 @@ def _row_to_dict(row):
 
 # ── Kanban Routes ────────────────────────────────────────────────
 
+@app.route('/agents')
+def agents_page():
+    return redirect('/team')
+
+
+@app.route('/agents/<slug>/prompt')
+def agent_prompt_view(slug):
+    """Serve agent prompt files as plain text."""
+    PROMPT_FILES = {
+        "bob": "bob-prompt.md", "forge": "forge-prompt.md", "truth": "truth-prompt.md",
+        "shark": "shark-prompt.md", "ace": "ace-prompt.md", "sam": "sam-prompt.md",
+        "marty": "marty-prompt.md", "quill": "quill-prompt.md", "pixel": "pixel-prompt.md",
+        "scrub": "scrub-prompt.md", "scout": "scout-prompt.md", "music-biz": "music-biz-prompt.md",
+        "vitruviano-pm": "vitruviano-pm-prompt.md", "sentinel": "sentinel-prompt.md",
+    }
+    prompt_dir = Path("/Users/bill/.openclaw/workspace/agents")
+    filename = PROMPT_FILES.get(slug)
+    if not filename:
+        return "Agent not found", 404
+    prompt_path = prompt_dir / filename
+    if not prompt_path.exists():
+        return "Prompt file not found", 404
+    from flask import Response
+    return Response(prompt_path.read_text(), mimetype="text/plain")
+
+
 @app.route('/kanban')
 def kanban_page():
     return render_template('kanban.html')
@@ -1907,20 +2470,10 @@ def api_kanban_columns():
 
 
 if __name__ == '__main__':
-    # Try port 8888 first, fall back to 8889 if occupied
-    port = 8888
+    port = 8889
     print("Starting Mission Control v2...")
     _ensure_message_center_db()
     init_kanban_db()
-    
-    # Check if port 8888 is available
-    import socket
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('0.0.0.0', 8888))
-    except OSError:
-        print(f"Port 8888 is in use, using port 8889 instead...")
-        port = 8889
-    
+    init_approvals_db()
     print(f"Dashboard available at: http://localhost:{port}")
     app.run(host='0.0.0.0', port=port, debug=False)

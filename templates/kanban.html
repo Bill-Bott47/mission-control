@@ -1,13 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mission Control v2 — Kanban</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='kanban.css') }}" />
-</head>
-<body>
+{% extends "base.html" %}
+{% set body_class = "body-full" %}
+{% block title %}Kanban — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='kanban.css') }}">
+{% endblock %}
+{% block content %}
   <div id="app">
 
     <!-- ── TOP NAV ───────────────────────────────────────────── -->
@@ -216,6 +213,8 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='kanban.js') }}"></script>
-</body>
-</html>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='kanban.js') }}"></script>
+{% endblock %}

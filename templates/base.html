@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Mission Control{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='shell.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body class="{{ body_class|default('') }}">
+    <div class="shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">⬡</div>
+                <div>
+                    <div class="brand-title">Mission Control</div>
+                    <div class="brand-sub">v2 command layer</div>
+                </div>
+            </div>
+            <nav class="nav">
+                <a href="/" class="{% if request.path == '/' %}active{% endif %}">Dashboard</a>
+                <a href="/kanban" class="{% if request.path.startswith('/kanban') %}active{% endif %}">Tasks (Kanban)</a>
+                <a href="/content" class="{% if request.path.startswith('/content') %}active{% endif %}">Content</a>
+                <a href="/calendar" class="{% if request.path.startswith('/calendar') %}active{% endif %}">Calendar</a>
+                <a href="/team" class="{% if request.path.startswith('/team') %}active{% endif %}">Team</a>
+                <a href="/projects" class="{% if request.path.startswith('/projects') %}active{% endif %}">Projects</a>
+                <a href="/memory" class="{% if request.path.startswith('/memory') %}active{% endif %}">Memory</a>
+                <a href="/docs" class="{% if request.path.startswith('/docs') %}active{% endif %}">Docs</a>
+                <a href="/approvals" class="nav-approvals {% if request.path.startswith('/approvals') %}active{% endif %}">Approvals <span id="approvals-badge" class="badge">0</span></a>
+                <a href="/council" class="{% if request.path.startswith('/council') %}active{% endif %}">Council</a>
+                <a href="/office" class="{% if request.path.startswith('/office') %}active{% endif %}">Office</a>
+            </nav>
+        </aside>
+        <main class="main">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='shell.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
