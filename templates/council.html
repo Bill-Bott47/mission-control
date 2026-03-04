@@ -1,54 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Council — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='council.css') }}">
+{% endblock %}
 {% block content %}
 <header class="page-header">
-    <h1>Agent Councils</h1>
+    <h1>Council</h1>
+    <div class="subtle">Advisory groups + deliberations</div>
 </header>
 
-<div class="councils-grid">
+<div class="council-grid">
     <div class="council-card">
         <h2>Content Council</h2>
-        <div class="council-members">
-            <span class="member">Quill ✍️</span>
-            <span class="member">Pixel 🎨</span>
-            <span class="member">Scrub 🧽</span>
-            <span class="member">Content PM 🗓️</span>
-            <span class="member">Marty 📣</span>
-            <span class="member">Scout 🔭</span>
+        <div class="council-members">Quill · Pixel · Scrub · Content PM · Marty · Scout</div>
+        <div class="council-meta">
+            <span>Active deliberations: 0</span>
+            <span>Pass rate: 0%</span>
         </div>
-        <div class="council-stats">
-            <div>Active deliberations: 0</div>
-            <div>Recent decisions: 0</div>
-        </div>
+        <div class="council-empty">No active deliberations yet.</div>
     </div>
-    
+
     <div class="council-card">
         <h2>Business Council</h2>
-        <div class="council-members">
-            <span class="member">Bob 🔨</span>
-            <span class="member">Sam 🎯</span>
-            <span class="member">Scout 🔭</span>
-            <span class="member">Scrub 🧽</span>
+        <div class="council-members">Bob · Sam · Scout · Scrub</div>
+        <div class="council-meta">
+            <span>Active deliberations: 0</span>
+            <span>Pass rate: 0%</span>
         </div>
-        <div class="council-stats">
-            <div>Active deliberations: 0</div>
-            <div>Recent decisions: 0</div>
-        </div>
+        <div class="council-empty">Awaiting first proposals.</div>
     </div>
-    
+
     <div class="council-card">
         <h2>Project Council</h2>
-        <div class="council-members">
-            <span class="member">Scout 🔭</span>
-            <span class="member">Marty 📣</span>
-            <span class="member">Sam 🎯</span>
-            <span class="member">Bob 🔨</span>
-            <span class="member">Scrub 🧽</span>
+        <div class="council-members">Scout · Marty · Sam · Bob · Scrub</div>
+        <div class="council-meta">
+            <span>Active deliberations: 0</span>
+            <span>Pass rate: 0%</span>
         </div>
-        <div class="council-stats">
-            <div>Active deliberations: 0</div>
-            <div>Recent decisions: 0</div>
-        </div>
+        <div class="council-empty">No decisions logged yet.</div>
     </div>
 </div>
 {% endblock %}

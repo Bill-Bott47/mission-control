@@ -200,3 +200,22 @@
 .escalation-item strong {
     color: var(--danger);
 }
+/* Agent color mapping */
+.agent-bill .agent-avatar { background: rgba(124, 58, 237, 0.2); border-color: #7C3AED; }
+.agent-bob .agent-avatar { background: rgba(245, 158, 11, 0.2); border-color: #F59E0B; }
+.agent-forge .agent-avatar { background: rgba(59, 130, 246, 0.2); border-color: #3B82F6; }
+.agent-truth .agent-avatar { background: rgba(20, 184, 166, 0.2); border-color: #14B8A6; }
+.agent-shark .agent-avatar { background: rgba(220, 38, 38, 0.2); border-color: #DC2626; }
+.agent-ace .agent-avatar { background: rgba(34, 197, 94, 0.2); border-color: #22C55E; }
+.agent-sam .agent-avatar { background: rgba(79, 70, 229, 0.2); border-color: #4F46E5; }
+.agent-marty .agent-avatar { background: rgba(234, 179, 8, 0.2); border-color: #EAB308; }
+.agent-quill .agent-avatar { background: rgba(239, 68, 68, 0.2); border-color: #EF4444; }
+.agent-pixel .agent-avatar { background: rgba(236, 72, 153, 0.2); border-color: #EC4899; }
+.agent-scrub .agent-avatar { background: rgba(6, 182, 212, 0.2); border-color: #06B6D4; }
+.agent-scout .agent-avatar { background: rgba(5, 150, 105, 0.2); border-color: #059669; }
+.agent-content-pm .agent-avatar { background: rgba(217, 119, 6, 0.2); border-color: #D97706; }
+.agent-librarian .agent-avatar { background: rgba(139, 92, 246, 0.2); border-color: #8B5CF6; }
+.agent-music-biz .agent-avatar { background: rgba(244, 63, 94, 0.2); border-color: #F43F5E; }
+.agent-vitruviano-pm .agent-avatar { background: rgba(132, 204, 22, 0.2); border-color: #84CC16; }
+.agent-ops .agent-avatar { background: rgba(113, 113, 122, 0.2); border-color: #71717A; }
+.agent-sentinel .agent-avatar { background: rgba(100, 116, 139, 0.2); border-color: #64748B; }

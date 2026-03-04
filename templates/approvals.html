@@ -1,43 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Approvals — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='approvals.css') }}">
+{% endblock %}
 {% block content %}
 <header class="page-header">
-    <h1>Approvals Queue</h1>
-    <button class="btn btn-primary" id="add-approval">+ New Request</button>
+    <h1>Approvals</h1>
+    <div class="subtle">Queue for Jonathan sign-off</div>
 </header>
 
-<div class="approvals-list" id="approvals-list">
-    <div class="placeholder">Loading approval requests...</div>
+<div class="approvals-layout">
+    <div class="approvals-list" id="approvals-list"></div>
+    <div class="approval-detail" id="approval-detail">
+        <h2>Decision Panel</h2>
+        <div class="detail-body" id="approval-detail-body">Select an item</div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const response = await fetch('/api/approvals');
-        const data = await response.json();
-        const list = document.getElementById('approvals-list');
-        
-        if (!data.approvals || data.approvals.length === 0) {
-            list.innerHTML = '<div class="placeholder">No approval requests</div>';
-            return;
-        }
-        
-        const html = data.approvals.map(approval => `
-            <div class="approval-item status-${approval.status}">
-                <h3>${approval.title}</h3>
-                <p>${approval.description}</p>
-                <div class="approval-meta">
-                    Status: ${approval.status} | Submitted by: ${approval.submitted_by} | ${new Date(approval.created_at).toLocaleDateString()}
-                </div>
-            </div>
-        `).join('');
-        
-        list.innerHTML = html;
-    } catch (error) {
-        document.getElementById('approvals-list').innerHTML = '<div class="placeholder">Failed to load approvals</div>';
-    }
-});
-</script>
+<script src="{{ url_for('static', filename='approvals.js') }}"></script>
 {% endblock %}

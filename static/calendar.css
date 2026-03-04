@@ -1,0 +1,80 @@
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+.calendar-day { margin-bottom: 24px; }
+
+.day-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+
+.day-grid { display: grid; gap: 10px; }
+
+.job-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+}
+
+.job-time { font-size: 12px; color: var(--text-muted); }
+
+.job-title { font-size: 14px; font-weight: 600; }
+
+.job-meta { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+.always-running-section { margin-top: 12px; }
+
+.running-jobs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.running-card {
+  min-width: 220px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.detail-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 320px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+  display: none;
+}
+
+.detail-panel.open { display: block; }
+
+.detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+.detail-body { font-size: 12px; color: var(--text-secondary); display: grid; gap: 6px; }

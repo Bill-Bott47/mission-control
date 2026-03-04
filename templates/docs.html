@@ -1,24 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Docs — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='docs.css') }}">
+{% endblock %}
 {% block content %}
 <header class="page-header">
-    <h1>Documentation</h1>
+    <h1>Docs</h1>
+    <div class="subtle">Workspace files + GitHub repos</div>
 </header>
 
-<div class="docs-sections">
-    <section class="docs-section">
+<div class="docs-layout">
+    <section class="docs-files">
         <h2>Workspace Files</h2>
-        <div id="workspace-files">Loading...</div>
+        <div id="docs-file-list" class="file-list"></div>
     </section>
-    
-    <section class="docs-section">
-        <h2>GitHub Repos</h2>
-        <div id="github-repos">Loading...</div>
-    </section>
-</div>
 
-<div class="docs-viewer" id="docs-viewer" style="display: none;">
-    <h2 id="viewer-title">File Content</h2>
-    <pre id="viewer-content"></pre>
+    <section class="docs-viewer">
+        <h2>File Viewer</h2>
+        <div id="docs-file-content" class="file-content">Select a file to view.</div>
+    </section>
+
+    <section class="docs-github">
+        <h2>GitHub Repos</h2>
+        <div id="github-repos" class="github-list"></div>
+    </section>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='docs.js') }}"></script>
 {% endblock %}

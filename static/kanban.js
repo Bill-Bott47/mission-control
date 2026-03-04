@@ -256,6 +256,11 @@ async function loadTasks() {
   try {
     const resp = await fetch('/api/kanban/tasks');
     allTasks = await resp.json();
+    if (Array.isArray(allTasks) && allTasks.length === 0) {
+      await fetch('/api/import-tasks', { method: 'POST' });
+      const retry = await fetch('/api/kanban/tasks');
+      allTasks = await retry.json();
+    }
     renderBoard();
   } catch (e) {
     console.error('loadTasks:', e);

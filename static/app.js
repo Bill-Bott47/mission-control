@@ -57,22 +57,22 @@ class Dashboard {
 
     async loadCrew() {
         try {
-            const response = await fetch('/api/team');
-            if (!response.ok) throw new Error('Failed to fetch team');
-            const agents = await response.json();
-            this.renderCrew(agents);
+            const response = await fetch('/api/crew-status');
+            if (!response.ok) throw new Error('Failed to fetch crew');
+            const data = await response.json();
+            this.renderCrew(data);
         } catch (error) {
             console.error('Failed to load crew:', error);
             this.renderCrewError();
         }
     }
 
-    renderCrew(agents) {
+    renderCrew(data) {
         const container = document.getElementById('crew-summary');
         const meta = document.getElementById('crew-meta');
-        
-        const online = agents.filter(a => a.status === 'online').length;
-        const idle = agents.filter(a => a.status === 'idle').length;
+        const online = data.online || 0;
+        const idle = data.idle || 0;
+        const total = data.total || (data.sessions ? data.sessions.length : online + idle);
         
         meta.textContent = `${online} online, ${idle} idle`;
         
@@ -84,11 +84,11 @@ class Dashboard {
                 </div>
                 <div class="crew-row">
                     <span>Idle</span>
-                    <span class="status-pill">${idle}</span>
+                    <span class="status-pill warn">${idle}</span>
                 </div>
                 <div class="crew-row">
                     <span>Offline</span>
-                    <span class="status-pill down">${agents.length - online - idle}</span>
+                    <span class="status-pill down">${Math.max(total - online - idle, 0)}</span>
                 </div>
             </div>
         `;
@@ -117,7 +117,10 @@ class Dashboard {
         const container = document.getElementById('system-health');
         const meta = document.getElementById('health-meta');
         
-        meta.textContent = `${data.errors_24h} errors (24h)`;
+        meta.textContent = `${data.errors_24h || 0} errors (24h)`;
+        const gw = data.gateway_status || {};
+        const uptime = gw.uptime || gw.uptimeSeconds || gw.uptime_s || '—';
+        const version = gw.version || gw.build || '—';
         
         const html = `
             <div class="health-grid">
@@ -126,12 +129,12 @@ class Dashboard {
                     <span class="status-pill ${data.gateway === 'up' ? 'up' : 'down'}">${data.gateway}</span>
                 </div>
                 <div class="health-row">
-                    <span>Mac Mini</span>
-                    <span class="status-pill up">online</span>
+                    <span>Uptime</span>
+                    <span class="status-pill">${uptime}</span>
                 </div>
                 <div class="health-row">
-                    <span>Phoenix-AI</span>
-                    <span class="status-pill ${data.phoenix?.status === 'up' ? 'up' : 'down'}">${data.phoenix?.status || 'unknown'}</span>
+                    <span>Version</span>
+                    <span class="status-pill">${version}</span>
                 </div>
             </div>
         `;

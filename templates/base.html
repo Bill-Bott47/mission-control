@@ -19,17 +19,40 @@
                 </div>
             </div>
             <nav class="nav">
-                <a href="/" class="{% if request.path == '/' %}active{% endif %}">Dashboard</a>
-                <a href="/kanban" class="{% if request.path.startswith('/kanban') %}active{% endif %}">Tasks (Kanban)</a>
-                <a href="/content" class="{% if request.path.startswith('/content') %}active{% endif %}">Content</a>
-                <a href="/calendar" class="{% if request.path.startswith('/calendar') %}active{% endif %}">Calendar</a>
-                <a href="/team" class="{% if request.path.startswith('/team') %}active{% endif %}">Team</a>
-                <a href="/projects" class="{% if request.path.startswith('/projects') %}active{% endif %}">Projects</a>
-                <a href="/memory" class="{% if request.path.startswith('/memory') %}active{% endif %}">Memory</a>
-                <a href="/docs" class="{% if request.path.startswith('/docs') %}active{% endif %}">Docs</a>
-                <a href="/approvals" class="nav-approvals {% if request.path.startswith('/approvals') %}active{% endif %}">Approvals <span id="approvals-badge" class="badge">0</span></a>
-                <a href="/council" class="{% if request.path.startswith('/council') %}active{% endif %}">Council</a>
-                <a href="/office" class="{% if request.path.startswith('/office') %}active{% endif %}">Office</a>
+                <a href="/" class="{% if request.path == '/' %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🏠</span>Dashboard</span>
+                </a>
+                <a href="/kanban" class="{% if request.path.startswith('/kanban') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🧩</span>Tasks</span>
+                </a>
+                <a href="/content" class="{% if request.path.startswith('/content') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🧪</span>Content</span>
+                </a>
+                <a href="/calendar" class="{% if request.path.startswith('/calendar') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">📅</span>Calendar</span>
+                </a>
+                <a href="/team" class="{% if request.path.startswith('/team') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🧑‍🤝‍🧑</span>Team</span>
+                </a>
+                <a href="/projects" class="{% if request.path.startswith('/projects') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🧭</span>Projects</span>
+                </a>
+                <a href="/memory" class="{% if request.path.startswith('/memory') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🧠</span>Memory</span>
+                </a>
+                <a href="/docs" class="{% if request.path.startswith('/docs') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">📚</span>Docs</span>
+                </a>
+                <a href="/approvals" class="nav-approvals {% if request.path.startswith('/approvals') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">✅</span>Approvals</span>
+                    <span id="approvals-badge" class="badge">0</span>
+                </a>
+                <a href="/council" class="{% if request.path.startswith('/council') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🏛️</span>Council</span>
+                </a>
+                <a href="/office" class="{% if request.path.startswith('/office') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🏙️</span>Office</span>
+                </a>
             </nav>
         </aside>
         <main class="main">

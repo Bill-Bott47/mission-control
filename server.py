@@ -986,23 +986,23 @@ def _parse_task_tracker():
     }
 
 TEAM_FALLBACK = [
-    {"name": "Bill", "emoji": "🫡", "role": "Orchestrator", "notes": "Main operator", "slug": "bill"},
-    {"name": "Bob", "emoji": "🔨", "role": "Builder", "notes": "Code + deploy", "slug": "bob"},
-    {"name": "Forge", "emoji": "⚒️", "role": "Code review", "notes": "Every line", "slug": "forge"},
+    {"name": "Bill", "emoji": "🫡", "role": "Orchestrator", "notes": "Ops + strategy lead", "slug": "bill"},
+    {"name": "Bob", "emoji": "🔨", "role": "Builder", "notes": "Ship features + deploy", "slug": "bob"},
+    {"name": "Forge", "emoji": "⚒️", "role": "Code Review", "notes": "Security + QA gate", "slug": "forge"},
     {"name": "Truth", "emoji": "👁️", "role": "Accountability", "notes": "Tracks commitments", "slug": "truth"},
     {"name": "Shark", "emoji": "🦈", "role": "Trading", "notes": "Markets + bots", "slug": "shark"},
-    {"name": "ACE", "emoji": "💪", "role": "Fitness", "notes": "Programming", "slug": "ace"},
-    {"name": "Sam", "emoji": "🎯", "role": "Strategy", "notes": "Business council", "slug": "sam"},
-    {"name": "Marty", "emoji": "📣", "role": "Marketing", "notes": "Content strategy", "slug": "marty"},
-    {"name": "Quill", "emoji": "✍️", "role": "Copywriting", "notes": "Executes briefs", "slug": "quill"},
-    {"name": "Pixel", "emoji": "🎨", "role": "Design", "notes": "Visuals", "slug": "pixel"},
-    {"name": "Scrub", "emoji": "🧽", "role": "Research", "notes": "Data gathering", "slug": "scrub"},
-    {"name": "Scout", "emoji": "🔭", "role": "Opportunity", "notes": "Intel", "slug": "scout"},
-    {"name": "Content PM", "emoji": "🗓️", "role": "Content pipeline", "notes": "Scheduling", "slug": "content-pm"},
+    {"name": "ACE", "emoji": "💪", "role": "Fitness", "notes": "Training systems", "slug": "ace"},
+    {"name": "Sam", "emoji": "🎯", "role": "Strategy", "notes": "Business ops", "slug": "sam"},
+    {"name": "Marty", "emoji": "📣", "role": "Marketing", "notes": "Campaigns + growth", "slug": "marty"},
+    {"name": "Quill", "emoji": "✍️", "role": "Copywriting", "notes": "Scripts + threads", "slug": "quill"},
+    {"name": "Pixel", "emoji": "🎨", "role": "Design", "notes": "Visuals + brand", "slug": "pixel"},
+    {"name": "Scrub", "emoji": "🧽", "role": "Research", "notes": "Intel + sourcing", "slug": "scrub"},
+    {"name": "Scout", "emoji": "🔭", "role": "Opportunity", "notes": "Scouting + leads", "slug": "scout"},
+    {"name": "Content PM", "emoji": "🗓️", "role": "Content Pipeline", "notes": "Scheduling + approvals", "slug": "content-pm"},
     {"name": "Librarian", "emoji": "📚", "role": "Knowledge", "notes": "Docs + memory", "slug": "librarian"},
-    {"name": "Music Biz", "emoji": "🎶", "role": "Music", "notes": "Curation", "slug": "music-biz"},
+    {"name": "Music Biz", "emoji": "🎶", "role": "Music", "notes": "Curation + vibes", "slug": "music-biz"},
     {"name": "Vitruviano PM", "emoji": "📱", "role": "Product", "notes": "App delivery", "slug": "vitruviano-pm"},
-    {"name": "Ops", "emoji": "🛠️", "role": "Infrastructure", "notes": "Systems", "slug": "ops"},
+    {"name": "Ops", "emoji": "🛠️", "role": "Infrastructure", "notes": "Systems + uptime", "slug": "ops"},
     {"name": "SENTINEL", "emoji": "🛡️", "role": "Infrastructure Monitor", "notes": "pai Ollama", "slug": "sentinel"},
 ]
 
@@ -1025,41 +1025,8 @@ TEAM_PROMPT_FILES = {
 
 
 def _load_team_roster():
-    roster_file = Path("/Users/bill/.openclaw/workspace/agents/ROSTER.md")
-    prompt_dir = Path("/Users/bill/.openclaw/workspace/agents")
-    agents = []
-
-    if roster_file.exists():
-        import re as _re
-        content = roster_file.read_text()
-        table_re = _re.compile(r'^\|\s*([^|]+?)\s*\|\s*\*\*(\w[\w\s]+?\w)\*\*\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|', _re.MULTILINE)
-        for m in table_re.finditer(content):
-            task = m.group(1).strip()
-            name_raw = m.group(2).strip()
-            emoji_part = m.group(3).strip()
-            notes = m.group(4).strip()
-            emoji = "".join(ch for ch in emoji_part if ord(ch) > 127) or "🤖"
-            slug = name_raw.lower().replace(" ", "-")
-            prompt_file = TEAM_PROMPT_FILES.get(slug, "")
-            has_prompt = bool(prompt_file) and (prompt_dir / prompt_file).exists()
-            agents.append({
-                "name": name_raw,
-                "emoji": emoji,
-                "role": task,
-                "notes": notes,
-                "slug": slug,
-                "prompt_file": prompt_file if has_prompt else "",
-            })
-
-    if not agents:
-        agents = TEAM_FALLBACK.copy()
-
-    # Ensure SENTINEL + missing agents are present
-    existing = {agent["name"].lower() for agent in agents}
-    for fallback in TEAM_FALLBACK:
-        if fallback["name"].lower() not in existing:
-            agents.append(fallback.copy())
-
+    """Hardcoded roster for Mission Control v2."""
+    agents = [agent.copy() for agent in TEAM_FALLBACK]
     return agents
 
 
@@ -1204,6 +1171,35 @@ def api_team():
     return jsonify(_apply_team_status(_load_team_roster()))
 
 
+@app.route('/api/crew-status')
+def api_crew_status():
+    """Return live crew status from gateway sessions."""
+    headers = {"Authorization": f"Bearer {GATEWAY_TOKEN}"}
+    sessions = []
+    online = 0
+    idle = 0
+    try:
+        resp = requests.get(f"{GATEWAY_URL}/api/sessions", headers=headers, timeout=6)
+        if resp.status_code == 200:
+            payload = resp.json()
+            if isinstance(payload, dict):
+                sessions = payload.get("sessions") or payload.get("items") or payload.get("data") or []
+            elif isinstance(payload, list):
+                sessions = payload
+    except Exception:
+        sessions = []
+
+    for session in sessions:
+        status = str(session.get("status", "online")).lower() if isinstance(session, dict) else "online"
+        if status in ("idle", "sleeping"):
+            idle += 1
+        else:
+            online += 1
+
+    total = len(sessions) if sessions else (online + idle)
+    return jsonify({"sessions": sessions, "online": online, "idle": idle, "total": total})
+
+
 def _extract_signal_items(text):
     if not text:
         return []
@@ -1280,7 +1276,6 @@ def api_task_summary():
 
 @app.route('/api/system-health')
 def api_system_health():
-    health = get_system_health()
     error_count = 0
     try:
         conn = _get_message_center_connection()
@@ -1291,18 +1286,24 @@ def api_system_health():
     except Exception:
         error_count = 0
 
+    gateway_status = {}
     gateway_up = False
     try:
-        response = requests.get(f"{GATEWAY_URL}/api/cron/jobs", headers={"Authorization": f"Bearer {GATEWAY_TOKEN}"}, timeout=4)
-        gateway_up = response.status_code == 200
+        response = requests.get(
+            f"{GATEWAY_URL}/api/status",
+            headers={"Authorization": f"Bearer {GATEWAY_TOKEN}"},
+            timeout=6
+        )
+        if response.status_code == 200:
+            gateway_status = response.json()
+            gateway_up = True
     except Exception:
         gateway_up = False
 
     return jsonify({
         "gateway": "up" if gateway_up else "down",
+        "gateway_status": gateway_status,
         "errors_24h": error_count,
-        "mac": health.get("mac_mini", {}),
-        "phoenix": health.get("phoenix_ai", {}),
     })
 
 
@@ -1377,13 +1378,7 @@ def api_memory_search():
 @app.route('/api/docs/files')
 def api_docs_files():
     base = Path("/Users/bill/.openclaw/workspace")
-    files = [
-        base / "SOUL.md",
-        base / "AGENTS.md",
-        base / "TOOLS.md",
-        base / "USER.md",
-        base / "TASK_TRACKER.md",
-    ]
+    files = sorted(base.glob("*.md"))
     specs_dir = base / "mission-control" / "specs"
     if specs_dir.exists():
         files.extend(sorted(specs_dir.glob("*.md")))
@@ -1404,23 +1399,19 @@ def api_docs_file():
 
 @app.route('/api/docs/github')
 def api_docs_github():
-    repos = ["mission-control", "vitruvian-phoenix", "workspace"]
-    data = []
-    for repo in repos:
-        repo_path = f"/Users/bill/.openclaw/workspace/{repo}"
-        try:
-            view = subprocess.run(["gh", "repo", "view", "--json", "name,defaultBranchRef,updatedAt"], cwd=repo_path, capture_output=True, text=True, timeout=8)
-            pr = subprocess.run(["gh", "pr", "list", "--json", "number,title,state"], cwd=repo_path, capture_output=True, text=True, timeout=8)
-            repo_info = json.loads(view.stdout) if view.returncode == 0 else {"name": repo}
-            pr_info = json.loads(pr.stdout) if pr.returncode == 0 else []
-            data.append({
-                "repo": repo,
-                "info": repo_info,
-                "prs": pr_info,
-            })
-        except Exception as e:
-            data.append({"repo": repo, "error": str(e)})
-    return jsonify({"repos": data})
+    try:
+        result = subprocess.run(
+            ["gh", "repo", "list", "Bill-Bott47", "--json", "name,description,updatedAt,url", "--limit", "10"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return jsonify({"repos": [], "error": result.stderr.strip() or "gh repo list failed"}), 500
+        repos = json.loads(result.stdout)
+        return jsonify({"repos": repos})
+    except Exception as e:
+        return jsonify({"repos": [], "error": str(e)}), 500
 
 
 @app.route('/api/approvals', methods=['GET'])
@@ -1882,7 +1873,7 @@ def api_content_pipeline_create():
     
     # Validate stage if provided
     stage = new_item.get('stage', 'trending')
-    valid_stages = ['trending', 'research', 'script', 'visual', 'approved', 'killed']
+    valid_stages = ['trending', 'research', 'script', 'visual', 'approved', 'published', 'killed']
     if stage not in valid_stages:
         return jsonify({"error": f"Invalid stage. Must be one of: {valid_stages}"}), 400
     
@@ -1922,7 +1913,7 @@ def api_content_pipeline_stage(item_id):
     if not new_stage:
         return jsonify({"error": "Missing stage"}), 400
     
-    valid_stages = ['trending', 'research', 'script', 'visual', 'approved']
+    valid_stages = ['trending', 'research', 'script', 'visual', 'approved', 'published']
     if new_stage not in valid_stages:
         return jsonify({"error": f"Invalid stage: {new_stage}"}), 400
     

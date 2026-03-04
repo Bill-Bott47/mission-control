@@ -1,167 +1,132 @@
 /* Mission Control v2 Shell Layout */
 :root {
-    --bg-primary: #0f0f1a;
-    --bg-secondary: #111827;
-    --bg-card: #1a1f36;
-    --border-primary: #1f2a44;
-    --text-primary: #e5e7ff;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
-    --accent: #4f46e5;
-    --accent-light: #6366f1;
-    --success: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
+  --bg-primary: #0D0D0F;
+  --bg-secondary: #141418;
+  --bg-card: #252535;
+  --border-primary: rgba(255,255,255,0.06);
+  --text-primary: #F0F0F0;
+  --text-secondary: #9999AA;
+  --text-muted: #666680;
+  --accent: #7C3AED;
+  --accent-light: #A855F7;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #DC2626;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    line-height: 1.5;
-    overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow-x: hidden;
 }
 
 .shell {
-    display: grid;
-    grid-template-columns: 260px 1fr;
-    min-height: 100vh;
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  min-height: 100vh;
 }
 
-/* Sidebar */
 .sidebar {
-    background: var(--bg-secondary);
-    border-right: 1px solid var(--border-primary);
-    padding: 24px 0;
-    position: fixed;
-    width: 260px;
-    height: 100vh;
-    overflow-y: auto;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-primary);
+  padding: 20px 0;
+  position: fixed;
+  width: 180px;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 24px 24px;
-    border-bottom: 1px solid var(--border-primary);
-    margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 16px;
+  border-bottom: 1px solid var(--border-primary);
+  margin-bottom: 16px;
 }
 
 .brand-logo {
-    width: 40px;
-    height: 40px;
-    background: linear-gradient(135deg, var(--accent), var(--accent-light));
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    color: white;
-    font-weight: bold;
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: white;
+  font-weight: 700;
 }
 
-.brand-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.brand-sub {
-    font-size: 12px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-}
+.brand-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.brand-sub { font-size: 10px; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; }
 
 .nav {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px;
 }
 
 .nav a {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    text-decoration: none;
-    color: var(--text-secondary);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s;
-    position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 10px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
 }
 
-.nav a:hover {
-    background: rgba(79, 70, 229, 0.1);
-    color: var(--text-primary);
+.nav a .nav-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+
+.nav-icon { font-size: 14px; width: 18px; text-align: center; }
+
+.nav a:hover { background: rgba(124, 58, 237, 0.12); color: var(--text-primary); }
 
 .nav a.active {
-    background: rgba(79, 70, 229, 0.15);
-    color: var(--accent-light);
-    border-left: 3px solid var(--accent);
+  background: #1E1E24;
+  color: var(--text-primary);
+  border-left: 3px solid var(--accent);
 }
 
 .badge {
-    background: var(--danger);
-    color: white;
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 999px;
-    min-width: 18px;
-    text-align: center;
-    line-height: 1.2;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.2;
 }
 
-/* Main Content */
 .main {
-    margin-left: 260px;
-    padding: 24px;
-    min-height: 100vh;
-    background: var(--bg-primary);
+  margin-left: 180px;
+  padding: 24px;
+  min-height: 100vh;
+  background: var(--bg-primary);
 }
 
-/* Full-width body class for kanban */
-.body-full .shell {
-    grid-template-columns: 1fr;
-}
+.body-full .shell { grid-template-columns: 1fr; }
+.body-full .sidebar { display: none; }
+.body-full .main { margin-left: 0; }
 
-.body-full .sidebar {
-    display: none;
-}
-
-.body-full .main {
-    margin-left: 0;
-}
-
-/* Responsive */
 @media (max-width: 1024px) {
-    .shell {
-        grid-template-columns: 1fr;
-    }
-    
-    .sidebar {
-        position: fixed;
-        left: -260px;
-        z-index: 50;
-        transition: left 0.3s;
-    }
-    
-    .sidebar.open {
-        left: 0;
-    }
-    
-    .main {
-        margin-left: 0;
-    }
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; left: -180px; z-index: 50; transition: left 0.3s; }
+  .sidebar.open { left: 0; }
+  .main { margin-left: 0; }
 }

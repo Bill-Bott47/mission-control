@@ -5,21 +5,39 @@
 {% endblock %}
 {% block content %}
 <header class="page-header">
-    <h1>Calendar</h1>
+    <div>
+        <h1>Calendar</h1>
+        <div class="subtle" id="calendar-date"></div>
+    </div>
     <div class="calendar-controls">
-        <button class="btn btn-primary" id="refresh-calendar">Refresh Jobs</button>
+        <button class="btn btn-secondary" id="refresh-calendar">Refresh Jobs</button>
     </div>
 </header>
 
-<div class="calendar-container" id="calendar-container">
-    <div class="placeholder">Loading cron jobs...</div>
-</div>
+<section class="legend" id="calendar-legend"></section>
 
-<div class="always-running-section">
-    <h2>Always Running</h2>
-    <div class="running-jobs" id="running-jobs">
-        <div class="placeholder">Loading high-frequency jobs...</div>
+<section class="calendar-day">
+    <div class="day-header">
+        <h2>Today — Day View</h2>
+        <span class="subtle">All scheduled jobs (sorted by next run)</span>
     </div>
+    <div class="day-grid" id="calendar-container"></div>
+</section>
+
+<section class="always-running-section">
+    <div class="day-header">
+        <h2>Always Running</h2>
+        <span class="subtle">Jobs scheduled every 15 minutes or less</span>
+    </div>
+    <div class="running-jobs" id="running-jobs"></div>
+</section>
+
+<div class="detail-panel" id="job-detail">
+    <div class="detail-header">
+        <h3 id="detail-title">Job Detail</h3>
+        <button class="btn btn-ghost" id="detail-close">Close</button>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
 </div>
 {% endblock %}
 

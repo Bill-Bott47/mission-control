@@ -1,43 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Projects — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='projects.css') }}">
+{% endblock %}
 {% block content %}
 <header class="page-header">
     <h1>Projects</h1>
+    <span class="subtle">Active initiatives across Phoenix + ops</span>
 </header>
 
-<div class="projects-grid" id="projects-grid">
-    <div class="placeholder">Loading projects...</div>
+<div class="projects-grid" id="projects-grid"></div>
+
+<div class="project-detail" id="project-detail">
+    <div class="detail-header">
+        <h2 id="detail-name">Project</h2>
+        <button class="btn btn-ghost" id="detail-close">Close</button>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
-// Simple projects loader
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const response = await fetch('/api/projects');
-        const data = await response.json();
-        const grid = document.getElementById('projects-grid');
-        
-        if (!data.projects || data.projects.length === 0) {
-            grid.innerHTML = '<div class="placeholder">No projects found</div>';
-            return;
-        }
-        
-        const html = data.projects.map(project => `
-            <div class="project-card">
-                <h3>${project.name}</h3>
-                <p>${project.description || ''}</p>
-                <div class="project-meta">
-                    Status: ${project.status || 'Unknown'}
-                </div>
-            </div>
-        `).join('');
-        
-        grid.innerHTML = html;
-    } catch (error) {
-        document.getElementById('projects-grid').innerHTML = '<div class="placeholder">Failed to load projects</div>';
-    }
-});
-</script>
+<script src="{{ url_for('static', filename='projects.js') }}"></script>
 {% endblock %}
