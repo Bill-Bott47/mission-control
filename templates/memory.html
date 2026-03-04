@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Memory — Mission Control{% endblock %}
+{% block content %}
+<header class="page-header">
+    <h1>Memory</h1>
+    <div class="memory-controls">
+        <input type="text" id="memory-search" placeholder="Search memory files..." />
+    </div>
+</header>
+
+<div class="memory-layout">
+    <div class="memory-files">
+        <h2>Files</h2>
+        <div id="files-list">Loading...</div>
+    </div>
+    
+    <div class="memory-viewer">
+        <h2>Content</h2>
+        <div id="file-content">Select a file to view</div>
+    </div>
+    
+    <div class="memory-search">
+        <h2>Search Results</h2>
+        <div id="search-results">Enter search query</div>
+    </div>
+</div>
+{% endblock %}

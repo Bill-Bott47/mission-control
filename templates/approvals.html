@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Approvals — Mission Control{% endblock %}
+{% block content %}
+<header class="page-header">
+    <h1>Approvals Queue</h1>
+    <button class="btn btn-primary" id="add-approval">+ New Request</button>
+</header>
+
+<div class="approvals-list" id="approvals-list">
+    <div class="placeholder">Loading approval requests...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const response = await fetch('/api/approvals');
+        const data = await response.json();
+        const list = document.getElementById('approvals-list');
+        
+        if (!data.approvals || data.approvals.length === 0) {
+            list.innerHTML = '<div class="placeholder">No approval requests</div>';
+            return;
+        }
+        
+        const html = data.approvals.map(approval => `
+            <div class="approval-item status-${approval.status}">
+                <h3>${approval.title}</h3>
+                <p>${approval.description}</p>
+                <div class="approval-meta">
+                    Status: ${approval.status} | Submitted by: ${approval.submitted_by} | ${new Date(approval.created_at).toLocaleDateString()}
+                </div>
+            </div>
+        `).join('');
+        
+        list.innerHTML = html;
+    } catch (error) {
+        document.getElementById('approvals-list').innerHTML = '<div class="placeholder">Failed to load approvals</div>';
+    }
+});
+</script>
+{% endblock %}

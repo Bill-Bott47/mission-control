@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Docs — Mission Control{% endblock %}
+{% block content %}
+<header class="page-header">
+    <h1>Documentation</h1>
+</header>
+
+<div class="docs-sections">
+    <section class="docs-section">
+        <h2>Workspace Files</h2>
+        <div id="workspace-files">Loading...</div>
+    </section>
+    
+    <section class="docs-section">
+        <h2>GitHub Repos</h2>
+        <div id="github-repos">Loading...</div>
+    </section>
+</div>
+
+<div class="docs-viewer" id="docs-viewer" style="display: none;">
+    <h2 id="viewer-title">File Content</h2>
+    <pre id="viewer-content"></pre>
+</div>
+{% endblock %}

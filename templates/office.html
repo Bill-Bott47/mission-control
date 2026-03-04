@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Office — Mission Control{% endblock %}
+{% block content %}
+<div class="office-container">
+    <div class="office-placeholder">
+        <h1>Office</h1>
+        <p>Coming Soon</p>
+        <div class="office-description">
+            An interactive isometric view of the agent workspace. 
+            Inspired by eBoy pixel art aesthetics.
+        </div>
+        <div class="office-mockup">
+            🏢 Interactive office visualization in development
+        </div>
+    </div>
+</div>
+
+<style>
+.office-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+}
+
+.office-placeholder h1 {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+
+.office-description {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin: 20px 0;
+    max-width: 400px;
+}
+
+.office-mockup {
+    font-size: 24px;
+    color: var(--text-muted);
+    margin-top: 32px;
+    padding: 24px;
+    border: 2px dashed var(--border-primary);
+    border-radius: 12px;
+}
+</style>
+{% endblock %}
