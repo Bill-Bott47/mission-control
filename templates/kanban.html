@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mission Control v2 — Kanban</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='kanban.css') }}" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ── TOP NAV ───────────────────────────────────────────── -->
+    <header class="mc-header">
+      <div class="mc-header-left">
+        <span class="mc-logo">⬡ MISSION CONTROL</span>
+        <span class="mc-version">v2</span>
+      </div>
+      <nav class="mc-nav">
+        <a href="/">Dashboard</a>
+        <a href="/kanban" class="active">Kanban</a>
+        <a href="/tasks">Tasks</a>
+        <a href="/messages">Messages</a>
+        <a href="/ops">Ops</a>
+      </nav>
+      <div class="mc-header-right">
+        <span id="clock" class="mc-clock"></span>
+        <span id="gw-status" class="mc-status-dot" title="Gateway">●</span>
+      </div>
+    </header>
+
+    <!-- ── MAIN LAYOUT ──────────────────────────────────────── -->
+    <div class="mc-layout">
+
+      <!-- LEFT SIDEBAR: Agent Feed + Signals -->
+      <aside class="mc-sidebar">
+
+        <!-- Agent Activity Feed -->
+        <section class="mc-panel" id="agent-feed-panel">
+          <div class="mc-panel-header">
+            <span>⚡ AGENT FEED</span>
+            <div class="mc-panel-actions">
+              <button class="mc-btn-xs" id="btn-discover-agents" title="Discover agents">SCAN</button>
+              <span id="feed-status" class="feed-dot">●</span>
+            </div>
+          </div>
+          <div id="agent-list" class="agent-list"></div>
+          <div id="agent-feed" class="feed-log"></div>
+        </section>
+
+        <!-- Trading Signals -->
+        <section class="mc-panel" id="signals-panel">
+          <div class="mc-panel-header">
+            <span>📈 SIGNALS</span>
+            <button class="mc-btn-xs" id="btn-refresh-signals">↺</button>
+          </div>
+          <div id="signals-tabs" class="tab-row">
+            <button class="tab-btn active" data-tab="ict">ICT</button>
+            <button class="tab-btn" data-tab="shark">SHARK</button>
+            <button class="tab-btn" data-tab="trades">TRADES</button>
+          </div>
+          <div id="signals-content" class="signals-content"></div>
+        </section>
+
+      </aside>
+
+      <!-- KANBAN BOARD -->
+      <main class="mc-board-container">
+
+        <!-- Board Controls -->
+        <div class="mc-board-controls">
+          <button class="mc-btn" id="btn-add-task">＋ NEW TASK</button>
+          <div class="filter-row">
+            <select id="filter-priority" class="mc-select">
+              <option value="">All Priority</option>
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select id="filter-agent" class="mc-select">
+              <option value="">All Agents</option>
+              <option value="main">Bill/Main</option>
+              <option value="Scout">Scout</option>
+              <option value="Shark">Shark</option>
+              <option value="ACE">ACE</option>
+              <option value="Quill">Quill</option>
+              <option value="Pixel">Pixel</option>
+            </select>
+            <input type="text" id="filter-search" class="mc-input-sm" placeholder="Search..." />
+          </div>
+          <span id="board-stats" class="board-stats"></span>
+        </div>
+
+        <!-- Board -->
+        <div class="mc-board" id="kanban-board">
+          <!-- Columns injected by JS -->
+        </div>
+
+      </main>
+
+      <!-- RIGHT SIDEBAR: Content Pipeline -->
+      <aside class="mc-sidebar mc-sidebar-right">
+        <section class="mc-panel" id="content-panel">
+          <div class="mc-panel-header">
+            <span>📝 CONTENT PIPELINE</span>
+            <button class="mc-btn-xs" id="btn-refresh-content">↺</button>
+          </div>
+          <div id="content-tabs" class="tab-row">
+            <button class="tab-btn active" data-ctab="all">ALL</button>
+            <button class="tab-btn" data-ctab="draft">DRAFT</button>
+            <button class="tab-btn" data-ctab="scheduled">SCHED</button>
+            <button class="tab-btn" data-ctab="published">LIVE</button>
+          </div>
+          <div id="content-stats" class="content-stats"></div>
+          <div id="content-list" class="content-list"></div>
+        </section>
+      </aside>
+
+    </div><!-- end mc-layout -->
+
+  </div><!-- end #app -->
+
+  <!-- ── NEW TASK MODAL ──────────────────────────────────────── -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="mc-modal" id="task-modal">
+      <div class="modal-header">
+        <span id="modal-title">NEW TASK</span>
+        <button class="modal-close" id="btn-modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field-row">
+          <label>Title *</label>
+          <input type="text" id="task-title" class="mc-input" placeholder="Task title..." />
+        </div>
+        <div class="field-row">
+          <label>Description</label>
+          <textarea id="task-desc" class="mc-textarea" rows="3" placeholder="Optional description..."></textarea>
+        </div>
+        <div class="field-row two-col">
+          <div>
+            <label>Column</label>
+            <select id="task-column" class="mc-select">
+              <option value="INBOX">INBOX</option>
+              <option value="PLANNING">PLANNING</option>
+              <option value="ASSIGNED">ASSIGNED</option>
+              <option value="IN PROGRESS">IN PROGRESS</option>
+              <option value="TESTING">TESTING</option>
+              <option value="REVIEW">REVIEW</option>
+              <option value="DONE">DONE</option>
+            </select>
+          </div>
+          <div>
+            <label>Priority</label>
+            <select id="task-priority" class="mc-select">
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row two-col">
+          <div>
+            <label>Agent</label>
+            <select id="task-agent" class="mc-select">
+              <option value="">Unassigned</option>
+              <option value="main">Bill/Main</option>
+              <option value="Scout">Scout</option>
+              <option value="Shark">Shark</option>
+              <option value="ACE">ACE</option>
+              <option value="Quill">Quill</option>
+              <option value="Pixel">Pixel</option>
+            </select>
+          </div>
+          <div>
+            <label>Due Date</label>
+            <input type="date" id="task-due" class="mc-input" />
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Tags</label>
+          <input type="text" id="task-tags" class="mc-input" placeholder="tag1, tag2, ..." />
+        </div>
+
+        <!-- AI Planning -->
+        <div class="ai-plan-section">
+          <button class="mc-btn-secondary" id="btn-ai-plan">🤖 AI PLAN THIS TASK</button>
+          <div id="ai-plan-result" class="ai-plan-result hidden"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="mc-btn-ghost" id="btn-modal-cancel">CANCEL</button>
+        <button class="mc-btn" id="btn-modal-save">SAVE TASK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TASK DETAIL MODAL ──────────────────────────────────── -->
+  <div id="detail-overlay" class="modal-overlay hidden">
+    <div class="mc-modal mc-modal-wide" id="detail-modal">
+      <div class="modal-header">
+        <span id="detail-title">TASK DETAIL</span>
+        <div>
+          <button class="mc-btn-xs danger" id="btn-detail-delete">DELETE</button>
+          <button class="modal-close" id="btn-detail-close">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" id="detail-body">
+        <!-- Injected by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="mc-btn-ghost" id="btn-detail-cancel">CLOSE</button>
+        <button class="mc-btn" id="btn-detail-save">UPDATE</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='kanban.js') }}"></script>
+</body>
+</html>

@@ -1452,11 +1452,466 @@ def api_content_pipeline_delete(item_id):
     
     return jsonify({"error": "Item not found"}), 404
 
+# ═══════════════════════════════════════════════════════════════
+#  MC v2 ADDITIONS: Kanban, Signals DB, Gateway, Content Pipeline
+# ═══════════════════════════════════════════════════════════════
+
+import threading
+import queue
+import websocket as _ws_client
+import uuid
+
+KANBAN_DB = os.path.join(os.path.dirname(__file__), 'data', 'kanban.db')
+KANBAN_COLUMNS = ['PLANNING', 'INBOX', 'ASSIGNED', 'IN PROGRESS', 'TESTING', 'REVIEW', 'DONE']
+
+SHARKTIME_DB = "/Users/bill/.openclaw/workspace/trading/sharktime/signals.db"
+ICT_ALERTS_DB = "/Users/bill/.openclaw/workspace/trading/ict-scanner/alerts.db"
+
+# ── Kanban DB ────────────────────────────────────────────────────
+
+def init_kanban_db():
+    os.makedirs(os.path.dirname(KANBAN_DB), exist_ok=True)
+    conn = sqlite3.connect(KANBAN_DB)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS kanban_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            column_name TEXT NOT NULL DEFAULT 'INBOX',
+            position INTEGER DEFAULT 0,
+            priority TEXT DEFAULT 'medium',
+            assigned_agent TEXT DEFAULT '',
+            tags TEXT DEFAULT '',
+            ai_notes TEXT DEFAULT '',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            due_date TEXT DEFAULT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kanban_column ON kanban_tasks(column_name)")
+    conn.commit()
+    conn.close()
+
+
+def _kanban_conn():
+    conn = sqlite3.connect(KANBAN_DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _row_to_dict(row):
+    return dict(row)
+
+
+# ── Kanban Routes ────────────────────────────────────────────────
+
+@app.route('/kanban')
+def kanban_page():
+    return render_template('kanban.html')
+
+
+@app.route('/api/kanban/tasks', methods=['GET'])
+def api_kanban_tasks_list():
+    try:
+        conn = _kanban_conn()
+        rows = conn.execute(
+            "SELECT * FROM kanban_tasks ORDER BY column_name, position ASC"
+        ).fetchall()
+        conn.close()
+        return jsonify([_row_to_dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/kanban/tasks', methods=['POST'])
+def api_kanban_tasks_create():
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    col = data.get('column', 'INBOX')
+    if col not in KANBAN_COLUMNS:
+        col = 'INBOX'
+    priority = data.get('priority', 'medium')
+    if priority not in ('low', 'medium', 'high', 'urgent'):
+        priority = 'medium'
+    try:
+        conn = _kanban_conn()
+        max_pos = conn.execute(
+            "SELECT COALESCE(MAX(position),0) FROM kanban_tasks WHERE column_name=?", (col,)
+        ).fetchone()[0]
+        cur = conn.execute(
+            """INSERT INTO kanban_tasks (title, description, column_name, position, priority,
+               assigned_agent, tags, ai_notes, due_date)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (
+                title,
+                data.get('description', ''),
+                col,
+                max_pos + 1,
+                priority,
+                data.get('assigned_agent', ''),
+                data.get('tags', ''),
+                data.get('ai_notes', ''),
+                data.get('due_date', None),
+            )
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM kanban_tasks WHERE id=?", (cur.lastrowid,)).fetchone()
+        conn.close()
+        return jsonify(_row_to_dict(row)), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/kanban/tasks/<int:task_id>', methods=['GET'])
+def api_kanban_task_get(task_id):
+    conn = _kanban_conn()
+    row = conn.execute("SELECT * FROM kanban_tasks WHERE id=?", (task_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(_row_to_dict(row))
+
+
+@app.route('/api/kanban/tasks/<int:task_id>', methods=['PUT'])
+def api_kanban_task_update(task_id):
+    data = request.get_json(silent=True) or {}
+    fields = []
+    vals = []
+    for f in ['title', 'description', 'priority', 'assigned_agent', 'tags', 'ai_notes', 'due_date']:
+        if f in data:
+            fields.append(f"{f}=?")
+            vals.append(data[f])
+    if not fields:
+        return jsonify({"error": "no fields"}), 400
+    fields.append("updated_at=datetime('now')")
+    vals.append(task_id)
+    try:
+        conn = _kanban_conn()
+        conn.execute(f"UPDATE kanban_tasks SET {', '.join(fields)} WHERE id=?", vals)
+        conn.commit()
+        row = conn.execute("SELECT * FROM kanban_tasks WHERE id=?", (task_id,)).fetchone()
+        conn.close()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(_row_to_dict(row))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/kanban/tasks/<int:task_id>', methods=['DELETE'])
+def api_kanban_task_delete(task_id):
+    try:
+        conn = _kanban_conn()
+        conn.execute("DELETE FROM kanban_tasks WHERE id=?", (task_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/kanban/tasks/<int:task_id>/move', methods=['POST'])
+def api_kanban_task_move(task_id):
+    data = request.get_json(silent=True) or {}
+    new_col = data.get('column')
+    new_pos = data.get('position', 0)
+    if new_col not in KANBAN_COLUMNS:
+        return jsonify({"error": "invalid column"}), 400
+    try:
+        conn = _kanban_conn()
+        # Shift existing items in target column down
+        conn.execute(
+            "UPDATE kanban_tasks SET position=position+1 WHERE column_name=? AND position>=? AND id!=?",
+            (new_col, new_pos, task_id)
+        )
+        conn.execute(
+            "UPDATE kanban_tasks SET column_name=?, position=?, updated_at=datetime('now') WHERE id=?",
+            (new_col, new_pos, task_id)
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM kanban_tasks WHERE id=?", (task_id,)).fetchone()
+        conn.close()
+        return jsonify(_row_to_dict(row))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── AI Planning Flow ─────────────────────────────────────────────
+
+@app.route('/api/kanban/ai-plan', methods=['POST'])
+def api_kanban_ai_plan():
+    """Generate AI planning notes for a task using gateway."""
+    data = request.get_json(silent=True) or {}
+    title = data.get('title', '')
+    description = data.get('description', '')
+    if not title:
+        return jsonify({"error": "title required"}), 400
+
+    prompt = f"""You are an AI task planner for Mission Control. Analyze this task and provide:
+1. Clarifying questions (2-3 max)
+2. Recommended assigned agent (from: Bill/main, Scout, Shark, Quill, Pixel, ACE)
+3. Suggested priority (low/medium/high/urgent)
+4. Estimated complexity (1-5)
+5. Tags (comma-separated)
+
+Task: {title}
+Description: {description}
+
+Reply in this exact JSON format:
+{{
+  "questions": ["q1", "q2"],
+  "assigned_agent": "agent_name",
+  "priority": "medium",
+  "complexity": 3,
+  "tags": "tag1,tag2",
+  "notes": "brief planning notes"
+}}"""
+
+    try:
+        headers = {"Authorization": f"Bearer {GATEWAY_TOKEN}", "Content-Type": "application/json"}
+        payload = {
+            "model": "anthropic/claude-sonnet-4-6",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 500
+        }
+        # Try gateway agent endpoint
+        resp = requests.post(
+            f"{GATEWAY_URL}/api/agent",
+            json={"prompt": prompt, "session": "agent:main:main"},
+            headers=headers,
+            timeout=15
+        )
+        if resp.status_code == 200:
+            text = resp.text
+        else:
+            # Fallback: return placeholder
+            text = json.dumps({
+                "questions": ["What's the deadline?", "Any dependencies?"],
+                "assigned_agent": "main",
+                "priority": "medium",
+                "complexity": 2,
+                "tags": "task",
+                "notes": f"Auto-planned task: {title}"
+            })
+    except Exception as _ai_err:
+        app.logger.error(f"AI plan error: {_ai_err}")
+        text = json.dumps({
+            "questions": ["What's the deadline?", "Any dependencies?"],
+            "assigned_agent": "main",
+            "priority": "medium",
+            "complexity": 2,
+            "tags": "task",
+            "notes": f"Auto-planned task: {title}"
+        })
+
+    # Try to extract JSON from response
+    try:
+        import re as _re
+        m = _re.search(r'\{.*\}', text, _re.DOTALL)
+        if m:
+            result = json.loads(m.group(0))
+        else:
+            result = json.loads(text)
+    except Exception:
+        result = {
+            "questions": ["What's the deadline?", "Any dependencies?"],
+            "assigned_agent": "main",
+            "priority": "medium",
+            "complexity": 2,
+            "tags": "task",
+            "notes": f"Task: {title}"
+        }
+
+    return jsonify(result)
+
+
+# ── Gateway Agent/Session Discovery ─────────────────────────────
+
+def _call_gateway_rpc(method, params=None, timeout=8):
+    """Call OpenClaw gateway via WebSocket JSON-RPC."""
+    result = {"error": "timeout"}
+    evt = threading.Event()
+
+    msg_id = str(uuid.uuid4())[:8]
+    payload = json.dumps({"jsonrpc": "2.0", "id": msg_id, "method": method, "params": params or {}})
+
+    def on_message(ws, message):
+        try:
+            data = json.loads(message)
+            if data.get("id") == msg_id:
+                result.clear()
+                result.update(data.get("result", data))
+                evt.set()
+        except Exception:
+            pass
+
+    def on_error(ws, error):
+        result["error"] = str(error)
+        evt.set()
+
+    def on_open(ws):
+        ws.send(payload)
+
+    try:
+        ws = _ws_client.WebSocketApp(
+            f"ws://127.0.0.1:18789/__openclaw__/ws",
+            header=[f"Authorization: Bearer {GATEWAY_TOKEN}"],
+            on_message=on_message,
+            on_error=on_error,
+            on_open=on_open,
+        )
+        t = threading.Thread(target=ws.run_forever, kwargs={"ping_timeout": timeout}, daemon=True)
+        t.start()
+        evt.wait(timeout=timeout)
+        ws.close()
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+@app.route('/api/gateway/sessions')
+def api_gateway_sessions():
+    """Discover active sessions/agents from OpenClaw gateway."""
+    try:
+        data = _call_gateway_rpc("sessions.list")
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/gateway/events')
+def api_gateway_events():
+    """SSE stream: proxy gateway WebSocket events to browser."""
+    def generate():
+        q = queue.Queue(maxsize=50)
+
+        def on_message(ws, message):
+            try:
+                q.put_nowait(message)
+            except queue.Full:
+                pass
+
+        def on_error(ws, error):
+            q.put_nowait(json.dumps({"type": "error", "error": str(error)}))
+
+        def on_close(ws, code, msg):
+            q.put_nowait(None)  # sentinel
+
+        def run_ws():
+            try:
+                ws = _ws_client.WebSocketApp(
+                    "ws://127.0.0.1:18789/__openclaw__/ws",
+                    header=[f"Authorization: Bearer {GATEWAY_TOKEN}"],
+                    on_message=on_message,
+                    on_error=on_error,
+                    on_close=on_close,
+                )
+                ws.run_forever(ping_interval=20, ping_timeout=10)
+            except Exception as e:
+                q.put_nowait(json.dumps({"type": "error", "error": str(e)}))
+                q.put_nowait(None)
+
+        t = threading.Thread(target=run_ws, daemon=True)
+        t.start()
+
+        yield "data: {\"type\":\"connected\"}\n\n"
+
+        while True:
+            try:
+                msg = q.get(timeout=30)
+                if msg is None:
+                    yield "data: {\"type\":\"disconnected\"}\n\n"
+                    break
+                yield f"data: {msg}\n\n"
+            except queue.Empty:
+                yield "data: {\"type\":\"heartbeat\"}\n\n"
+
+    return app.response_class(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
+
+
+# ── Trading Signals DB ────────────────────────────────────────────
+
+@app.route('/api/trading-signals/db')
+def api_trading_signals_db():
+    """Pull latest signals from sharktime and ict-scanner SQLite DBs."""
+    result = {
+        "sharktime": [],
+        "ict_alerts": [],
+        "sharktime_trades": [],
+        "last_updated": datetime.now().isoformat()
+    }
+
+    # Sharktime signals
+    try:
+        if os.path.exists(SHARKTIME_DB):
+            conn = sqlite3.connect(SHARKTIME_DB)
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT id, asset, direction, signal_type, timeframe,
+                       ROUND(confidence_score, 3) as confidence_score,
+                       entry_price_low, entry_price_high, tp1_price, tp2_price, sl_price,
+                       ROUND(r_r_ratio, 2) as r_r_ratio, status, created_at
+                FROM signals
+                ORDER BY created_at DESC
+                LIMIT 20
+            """).fetchall()
+            result["sharktime"] = [dict(r) for r in rows]
+
+            # Recent trades
+            trade_rows = conn.execute("""
+                SELECT id, asset, direction, entry_price, exit_price, exit_reason,
+                       ROUND(pnl_usd, 2) as pnl_usd, status, timestamp
+                FROM trades
+                ORDER BY timestamp DESC
+                LIMIT 10
+            """).fetchall()
+            result["sharktime_trades"] = [dict(r) for r in trade_rows]
+            conn.close()
+    except Exception as e:
+        result["sharktime_error"] = str(e)
+
+    # ICT Scanner alerts
+    try:
+        if os.path.exists(ICT_ALERTS_DB):
+            conn = sqlite3.connect(ICT_ALERTS_DB)
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT alert_id, symbol, timeframe, setup_type,
+                       sent_timestamp, message_text
+                FROM alerts
+                ORDER BY sent_timestamp DESC
+                LIMIT 15
+            """).fetchall()
+            result["ict_alerts"] = [dict(r) for r in rows]
+            conn.close()
+    except Exception as e:
+        result["ict_error"] = str(e)
+
+    return jsonify(result)
+
+
+@app.route('/api/kanban/columns')
+def api_kanban_columns():
+    return jsonify(KANBAN_COLUMNS)
+
+
 if __name__ == '__main__':
     # Try port 8888 first, fall back to 8889 if occupied
     port = 8888
-    print("Starting Mission Control v1...")
+    print("Starting Mission Control v2...")
     _ensure_message_center_db()
+    init_kanban_db()
     
     # Check if port 8888 is available
     import socket
