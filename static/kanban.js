@@ -5,34 +5,49 @@
 
 'use strict';
 
-const COLUMNS = ['PLANNING','INBOX','ASSIGNED','IN PROGRESS','TESTING','REVIEW','DONE'];
+const COLUMNS = ['INBOX','PLANNING','IN PROGRESS','TESTING','REVIEW','DONE'];
 const COL_COLORS = {
-  'PLANNING':    'var(--col-planning)',
   'INBOX':       'var(--col-inbox)',
-  'ASSIGNED':    'var(--col-assigned)',
+  'PLANNING':    'var(--col-planning)',
   'IN PROGRESS': 'var(--col-inprogress)',
   'TESTING':     'var(--col-testing)',
   'REVIEW':      'var(--col-review)',
   'DONE':        'var(--col-done)',
 };
 
+const AGENT_COLORS = {
+  'main': '#7C3AED',
+  'Bill': '#7C3AED',
+  'Bob': '#F59E0B',
+  'Forge': '#3B82F6',
+  'Truth': '#14B8A6',
+  'Shark': '#DC2626',
+  'ACE': '#22C55E',
+  'Sam': '#4F46E5',
+  'Marty': '#EAB308',
+  'Quill': '#EF4444',
+  'Pixel': '#EC4899',
+  'Scrub': '#06B6D4',
+  'Scout': '#059669',
+  'Content PM': '#D97706',
+  'SENTINEL': '#64748B',
+  'Librarian': '#8B5CF6',
+  'Music Biz': '#F43F5E',
+  'Vitruviano PM': '#84CC16',
+  'Ops': '#71717A',
+};
+
 let allTasks = [];
 let draggedId = null;
 let editingTaskId = null;
-let activeSignalTab = 'ict';
-let activeContentTab = 'all';
-let feedEventSource = null;
 
 // ── INIT ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   buildBoard();
   loadTasks();
-  loadSignals();
-  loadContent();
-  startGatewayFeed();
-  discoverAgents();
-  startClock();
+  loadSummary();
+  loadRecentActivity();
 
   // Bind controls
   document.getElementById('btn-add-task').addEventListener('click', openCreateModal);
@@ -44,32 +59,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-detail-save').addEventListener('click', updateTask);
   document.getElementById('btn-detail-delete').addEventListener('click', deleteTask);
   document.getElementById('btn-ai-plan').addEventListener('click', runAiPlan);
-  document.getElementById('btn-discover-agents').addEventListener('click', discoverAgents);
-  document.getElementById('btn-refresh-signals').addEventListener('click', loadSignals);
-  document.getElementById('btn-refresh-content').addEventListener('click', loadContent);
 
   // Filters
-  ['filter-priority', 'filter-agent', 'filter-search'].forEach(id => {
+  ['filter-priority', 'filter-search'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderBoard);
   });
 
-  // Signal tabs
-  document.querySelectorAll('#signals-tabs .tab-btn').forEach(btn => {
+  document.querySelectorAll('.agent-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('#signals-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.agent-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      activeSignalTab = btn.dataset.tab;
-      renderSignals();
-    });
-  });
-
-  // Content tabs
-  document.querySelectorAll('#content-tabs .tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#content-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeContentTab = btn.dataset.ctab;
-      renderContentList();
+      document.getElementById('filter-agent').value = btn.dataset.agent || '';
+      renderBoard();
     });
   });
 
@@ -81,21 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === document.getElementById('detail-overlay')) closeDetailModal();
   });
 });
-
-// ── CLOCK ─────────────────────────────────────────────────────
-
-function startClock() {
-  const el = document.getElementById('clock');
-  const update = () => {
-    const now = new Date();
-    el.textContent = now.toLocaleTimeString('en-US', {
-      hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
-      timeZone: 'America/Chicago'
-    }) + ' CST';
-  };
-  update();
-  setInterval(update, 1000);
-}
 
 // ── BOARD ─────────────────────────────────────────────────────
 
@@ -109,8 +95,14 @@ function buildBoard() {
     colEl.style.setProperty('--col-color', COL_COLORS[col]);
     colEl.innerHTML = `
       <div class="col-header" style="--col-color:${COL_COLORS[col]}">
-        <span class="col-name" style="color:${COL_COLORS[col]}">${col}</span>
-        <span class="col-count" id="count-${col.replace(/ /g,'_')}">0</span>
+        <div class="col-title">
+          <span class="col-dot" style="background:${COL_COLORS[col]}"></span>
+          <span>${col}</span>
+        </div>
+        <div class="col-meta">
+          <span class="col-count" id="count-${col.replace(/ /g,'_')}">0</span>
+          <button class="col-add" data-col="${col}">+</button>
+        </div>
       </div>
       <div class="col-body" id="col-${col.replace(/ /g,'_')}"
            ondragover="handleDragOver(event)"
@@ -119,6 +111,13 @@ function buildBoard() {
       </div>
     `;
     board.appendChild(colEl);
+  });
+
+  board.querySelectorAll('.col-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openCreateModal();
+      document.getElementById('task-column').value = btn.dataset.col;
+    });
   });
 }
 
@@ -132,7 +131,6 @@ function getFilters() {
 
 function renderBoard() {
   const { priority, agent, search } = getFilters();
-  let stats = { total: 0 };
 
   COLUMNS.forEach(col => {
     const tasks = allTasks.filter(t => {
@@ -150,11 +148,7 @@ function renderBoard() {
     bodyEl.innerHTML = '';
     tasks.forEach(task => bodyEl.appendChild(buildCard(task)));
     countEl.textContent = tasks.length;
-    stats.total += tasks.length;
   });
-
-  document.getElementById('board-stats').textContent =
-    `${stats.total} tasks | ${allTasks.filter(t => t.column_name === 'DONE').length} done`;
 }
 
 function buildCard(task) {
@@ -163,17 +157,22 @@ function buildCard(task) {
   card.dataset.id = task.id;
   card.draggable = true;
 
-  const due = task.due_date ? formatDue(task.due_date) : null;
-  const isOverdue = due && due.overdue;
+  const tag = (task.tags || '').split(',').map(t => t.trim()).filter(Boolean)[0];
+  const agent = task.assigned_agent || '';
+  const avatarLabel = agent ? agent[0].toUpperCase() : '?';
+  const avatarColor = AGENT_COLORS[agent] || AGENT_COLORS[agent?.toString()?.trim()] || '#71717A';
+  const timeLabel = task.created_at ? formatTime(task.created_at) : '';
 
   card.innerHTML = `
-    <span class="card-id">#${task.id}</span>
+    <div class="priority-dot"></div>
     <div class="card-title">${escHtml(task.title)}</div>
-    <div class="card-meta">
-      ${task.assigned_agent ? `<span class="card-agent">${escHtml(task.assigned_agent)}</span>` : ''}
-      <span class="card-pri ${task.priority}">${task.priority}</span>
-      ${task.tags ? `<span class="card-tags">${escHtml(task.tags.split(',').map(t=>t.trim()).join(' · '))}</span>` : ''}
-      ${due ? `<span class="card-due ${isOverdue ? 'overdue' : ''}">${due.label}</span>` : ''}
+    ${task.description ? `<div class="card-desc">${escHtml(task.description)}</div>` : ''}
+    <div class="card-footer">
+      <div class="card-meta-left">
+        <span class="avatar" style="background:${avatarColor}">${avatarLabel}</span>
+        ${tag ? `<span class="tag-badge">${escHtml(tag)}</span>` : ''}
+      </div>
+      <span class="card-time">${escHtml(timeLabel)}</span>
     </div>
   `;
 
@@ -194,17 +193,10 @@ function buildCard(task) {
   return card;
 }
 
-function formatDue(dateStr) {
+function formatTime(dateStr) {
   const d = new Date(dateStr);
-  const now = new Date();
-  const diff = (d - now) / 86400000;
-  const overdue = diff < 0;
-  const label = overdue
-    ? `${Math.abs(Math.floor(diff))}d late`
-    : diff < 1 ? 'today'
-    : diff < 2 ? 'tmrw'
-    : `${Math.floor(diff)}d`;
-  return { label, overdue };
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // ── DRAG & DROP ───────────────────────────────────────────────
@@ -267,6 +259,64 @@ async function loadTasks() {
   }
 }
 
+async function loadSummary() {
+  try {
+    const resp = await fetch('/api/task-summary');
+    const data = await resp.json();
+    const total = data.total ?? 0;
+    const inProgress = data.in_progress ?? 0;
+    const thisWeek = data.this_week ?? 0;
+    const completion = data.completion ?? (total ? Math.round((data.done ?? 0) / total * 100) : 0);
+
+    document.getElementById('kanban-stats').innerHTML = `
+      <span class="stat-item"><strong>${thisWeek}</strong> This week</span>
+      <span class="stat-dot">·</span>
+      <span class="stat-item"><strong>${inProgress}</strong> In progress</span>
+      <span class="stat-dot">·</span>
+      <span class="stat-item"><strong>${total}</strong> Total</span>
+      <span class="stat-dot">·</span>
+      <span class="stat-item"><strong>${completion}%</strong> Completion</span>
+    `;
+  } catch (e) {
+    console.error('loadSummary:', e);
+  }
+}
+
+async function loadRecentActivity() {
+  const list = document.getElementById('activity-list');
+  list.innerHTML = '<div style="color:var(--muted);font-size:12px">Loading...</div>';
+  try {
+    const resp = await fetch('/api/recent-activity');
+    const data = await resp.json();
+    const items = data.items || data.activity || data || [];
+
+    if (!items.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px">No activity</div>';
+      return;
+    }
+
+    list.innerHTML = items.map(item => {
+      const agent = item.agent || item.session || item.user || 'Agent';
+      const color = AGENT_COLORS[agent] || '#7C3AED';
+      const time = item.time || item.timestamp || '';
+      const label = time ? formatTime(time) : '';
+      const msg = item.message || item.text || item.action || '';
+      return `
+        <div class="activity-item">
+          <span class="activity-dot" style="background:${color}"></span>
+          <div class="activity-content">
+            <strong style="color:${color}">${escHtml(agent)}</strong> ${escHtml(msg)}
+            ${label ? `<span class="activity-time">${escHtml(label)}</span>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error('loadRecentActivity:', e);
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px">Activity unavailable</div>';
+  }
+}
+
 // ── CREATE TASK MODAL ─────────────────────────────────────────
 
 function openCreateModal() {
@@ -312,6 +362,7 @@ async function saveTask() {
     if (resp.ok) {
       closeModal();
       await loadTasks();
+      await loadSummary();
     }
   } catch (e) {
     console.error('saveTask:', e);
@@ -374,7 +425,7 @@ function buildDetailForm(task) {
     </div>` : ''}
     <div class="field-row">
       <label>CREATED</label>
-      <span style="font-size:10px;color:var(--text2)">${task.created_at}</span>
+      <span style="font-size:12px;color:var(--muted)">${task.created_at}</span>
     </div>
   `;
 }
@@ -416,6 +467,7 @@ async function updateTask() {
 
     closeDetailModal();
     await loadTasks();
+    await loadSummary();
   } catch (e) {
     console.error('updateTask:', e);
   }
@@ -428,6 +480,7 @@ async function deleteTask() {
     await fetch(`/api/kanban/tasks/${editingTaskId}`, { method: 'DELETE' });
     closeDetailModal();
     await loadTasks();
+    await loadSummary();
   } catch (e) {
     console.error('deleteTask:', e);
   }
@@ -478,244 +531,11 @@ async function runAiPlan() {
     resultEl.classList.remove('hidden');
   } catch (e) {
     console.error('AI plan failed:', e);
-    resultEl.innerHTML = '<div style="color:var(--red)">AI planning unavailable</div>';
+    resultEl.innerHTML = '<div style="color:var(--pri-urgent)">AI planning unavailable</div>';
     resultEl.classList.remove('hidden');
   } finally {
     btn.textContent = '🤖 AI PLAN THIS TASK';
     btn.disabled = false;
-  }
-}
-
-// ── SIGNALS ───────────────────────────────────────────────────
-
-let signalsData = null;
-
-async function loadSignals() {
-  try {
-    const resp = await fetch('/api/trading-signals/db');
-    signalsData = await resp.json();
-    renderSignals();
-  } catch (e) {
-    console.error('loadSignals:', e);
-  }
-}
-
-function renderSignals() {
-  const el = document.getElementById('signals-content');
-  if (!signalsData) { el.innerHTML = '<div class="mc-loading">Loading...</div>'; return; }
-
-  if (activeSignalTab === 'ict') {
-    const alerts = signalsData.ict_alerts || [];
-    if (!alerts.length) { el.innerHTML = '<div class="mc-empty">No ICT alerts</div>'; return; }
-    el.innerHTML = alerts.map(a => `
-      <div class="ict-row">
-        <div class="ict-header">
-          <span class="ict-symbol">${escHtml(a.symbol || '?')}</span>
-          <span class="ict-tf">${escHtml(a.timeframe || '')}</span>
-          <span class="ict-setup">${escHtml(a.setup_type || '')}</span>
-        </div>
-        <div class="ict-msg">${escHtml((a.message_text || '').substring(0, 80))}</div>
-      </div>
-    `).join('');
-  } else if (activeSignalTab === 'shark') {
-    const signals = signalsData.sharktime || [];
-    if (!signals.length) { el.innerHTML = '<div class="mc-empty">No signals</div>'; return; }
-    el.innerHTML = `
-      <div class="signal-row" style="color:var(--text3);border-bottom:1px solid var(--border)">
-        <span>ASSET</span><span>DIR</span><span>TYPE</span><span>TF</span><span>CONF</span>
-      </div>
-      ${signals.map(s => {
-        const conf = s.confidence_score || 0;
-        const confClass = conf >= 0.8 ? 'conf-high' : conf >= 0.6 ? 'conf-medium' : 'conf-low';
-        return `
-          <div class="signal-row">
-            <span class="signal-asset">${escHtml(s.asset)}</span>
-            <span class="${s.direction==='LONG'?'signal-long':'signal-short'}">${s.direction}</span>
-            <span class="signal-type">${escHtml((s.signal_type||'').replace(/_/g,' '))}</span>
-            <span class="signal-tf">${escHtml(s.timeframe||'')}</span>
-            <span class="signal-conf ${confClass}">${(conf*100).toFixed(0)}%</span>
-          </div>
-        `;
-      }).join('')}
-    `;
-  } else if (activeSignalTab === 'trades') {
-    const trades = signalsData.sharktime_trades || [];
-    if (!trades.length) { el.innerHTML = '<div class="mc-empty">No trades</div>'; return; }
-    el.innerHTML = `
-      <div class="trade-row" style="color:var(--text3);border-bottom:1px solid var(--border)">
-        <span>ASSET</span><span>DIR</span><span>ENTRY</span><span>EXIT</span><span>PNL</span>
-      </div>
-      ${trades.map(t => {
-        const pnl = t.pnl_usd;
-        const pnlClass = pnl > 0 ? 'pnl-pos' : pnl < 0 ? 'pnl-neg' : '';
-        return `
-          <div class="trade-row">
-            <span class="signal-asset">${escHtml(t.asset)}</span>
-            <span class="${t.direction==='LONG'?'signal-long':'signal-short'}">${t.direction}</span>
-            <span style="color:var(--text2)">${fmtPrice(t.entry_price)}</span>
-            <span style="color:var(--text2)">${fmtPrice(t.exit_price)}</span>
-            <span class="${pnlClass}">${pnl!=null ? (pnl>0?'+':'')+pnl : '—'}</span>
-          </div>
-        `;
-      }).join('')}
-    `;
-  }
-}
-
-function fmtPrice(p) {
-  if (p == null) return '—';
-  return parseFloat(p).toFixed(2);
-}
-
-// ── CONTENT PIPELINE ─────────────────────────────────────────
-
-let contentData = null;
-
-async function loadContent() {
-  try {
-    const resp = await fetch('/api/content-pipeline');
-    contentData = await resp.json();
-    renderContentStats();
-    renderContentList();
-  } catch (e) {
-    console.error('loadContent:', e);
-  }
-}
-
-function renderContentStats() {
-  const items = contentData?.items || [];
-  const stats = { all: items.length, draft: 0, scheduled: 0, published: 0, killed: 0 };
-  items.forEach(item => {
-    const stage = item.stage || '';
-    if (item.killed) { stats.killed++; }
-    else if (item.approved || stage === 'approved') { stats.published++; }
-    else if (stage === 'scheduled') { stats.scheduled++; }
-    else { stats.draft++; }
-  });
-
-  document.getElementById('content-stats').innerHTML = `
-    <div class="content-stat"><strong>${stats.all}</strong><span>TOTAL</span></div>
-    <div class="content-stat"><strong style="color:var(--yellow)">${stats.draft}</strong><span>DRAFT</span></div>
-    <div class="content-stat"><strong style="color:var(--orange)">${stats.scheduled}</strong><span>SCHED</span></div>
-    <div class="content-stat"><strong style="color:var(--green)">${stats.published}</strong><span>LIVE</span></div>
-  `;
-}
-
-function renderContentList() {
-  const items = contentData?.items || [];
-  const tab = activeContentTab;
-  const el = document.getElementById('content-list');
-
-  const filtered = items.filter(item => {
-    if (tab === 'all') return !item.killed;
-    if (tab === 'draft') return !item.killed && !item.approved && item.stage !== 'scheduled';
-    if (tab === 'scheduled') return !item.killed && item.stage === 'scheduled';
-    if (tab === 'published') return !item.killed && (item.approved || item.stage === 'approved');
-    return true;
-  });
-
-  if (!filtered.length) { el.innerHTML = '<div class="mc-empty">No items</div>'; return; }
-
-  el.innerHTML = filtered.map(item => {
-    const stageClass = item.killed ? 'ci-killed' :
-      item.approved ? 'ci-approved' :
-      `ci-${(item.stage||'trending').replace(/\s/g,'-')}`;
-    const stageLabel = item.killed ? 'KILLED' :
-      item.approved ? 'LIVE' :
-      (item.stage || 'DRAFT').toUpperCase();
-
-    return `
-      <div class="content-item">
-        <span class="ci-stage ${stageClass}">${stageLabel}</span>
-        <div>
-          <div class="ci-title">${escHtml(item.title || 'Untitled')}</div>
-          ${item.channels ? `<div class="ci-channels">${escHtml(item.channels)}</div>` : ''}
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-// ── GATEWAY FEED ──────────────────────────────────────────────
-
-function startGatewayFeed() {
-  const feedEl = document.getElementById('agent-feed');
-  const feedDot = document.getElementById('feed-status');
-
-  if (feedEventSource) feedEventSource.close();
-
-  feedEventSource = new EventSource('/api/gateway/events');
-
-  feedEventSource.onopen = () => {
-    feedDot.classList.add('active');
-    document.getElementById('gw-status').style.color = 'var(--green)';
-  };
-
-  feedEventSource.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      if (data.type === 'heartbeat' || data.type === 'connected') return;
-      if (data.type === 'disconnected') {
-        feedDot.classList.remove('active');
-        document.getElementById('gw-status').style.color = 'var(--red)';
-        return;
-      }
-      appendFeedEntry(feedEl, data);
-    } catch (_) {}
-  };
-
-  feedEventSource.onerror = () => {
-    feedDot.classList.remove('active');
-    document.getElementById('gw-status').style.color = 'var(--orange)';
-    // Reconnect after 5s
-    setTimeout(startGatewayFeed, 5000);
-  };
-}
-
-function appendFeedEntry(feedEl, data) {
-  const entry = document.createElement('div');
-  const type = data.type || data.kind || 'info';
-  const cls = type.includes('error') ? 'error' : type.includes('warn') ? 'warn' : type.includes('tool') ? 'tool' : 'info';
-  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-  let content = '';
-  if (data.session || data.agent) {
-    content += `<span class="feed-agent">${escHtml(data.session || data.agent)}</span>`;
-  }
-  const msg = data.message || data.text || data.content || data.method || JSON.stringify(data).substring(0, 80);
-  content += escHtml(msg.substring(0, 100));
-
-  entry.className = `feed-entry ${cls}`;
-  entry.innerHTML = `<span class="feed-time">${time}</span>${content}`;
-  feedEl.insertBefore(entry, feedEl.firstChild);
-
-  // Keep max 100 entries
-  while (feedEl.children.length > 100) feedEl.removeChild(feedEl.lastChild);
-}
-
-// ── AGENT DISCOVERY ───────────────────────────────────────────
-
-async function discoverAgents() {
-  const listEl = document.getElementById('agent-list');
-  listEl.innerHTML = '<span class="mc-loading">scanning...</span>';
-
-  try {
-    const resp = await fetch('/api/gateway/sessions');
-    const data = await resp.json();
-
-    const sessions = data.sessions || data.items || data.result?.sessions || [];
-    if (!sessions.length) {
-      listEl.innerHTML = '<span style="color:var(--text3);font-size:10px;padding:4px">No active sessions</span>';
-      return;
-    }
-
-    listEl.innerHTML = sessions.map(s => {
-      const label = s.label || s.key || s.id || 'unknown';
-      const isOnline = s.status === 'online' || s.active === true;
-      return `<span class="agent-chip ${isOnline ? 'online' : ''}" title="${escAttr(JSON.stringify(s))}">${escHtml(label)}</span>`;
-    }).join('');
-  } catch (e) {
-    listEl.innerHTML = `<span style="color:var(--red);font-size:10px;padding:4px">discovery failed</span>`;
   }
 }
 
@@ -736,7 +556,7 @@ function escAttr(str) {
   return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// Auto-refresh board every 30s
+// Auto-refresh
 setInterval(loadTasks, 30000);
-setInterval(loadSignals, 60000);
-setInterval(loadContent, 60000);
+setInterval(loadSummary, 60000);
+setInterval(loadRecentActivity, 30000);
