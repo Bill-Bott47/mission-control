@@ -132,3 +132,43 @@ body {
   .sidebar.open { left: 0; }
   .main { margin-left: 0; }
 }
+
+/* Global Ticker — persistent across all pages */
+.global-ticker {
+  display: flex;
+  align-items: center;
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ticker-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #7C3AED;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+.ticker-track {
+  display: flex;
+  gap: 24px;
+  animation: ticker-scroll 30s linear infinite;
+  flex-shrink: 0;
+}
+.ticker-item {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #8888AA);
+  white-space: nowrap;
+}
+.ticker-item.long { color: #22C55E; }
+.ticker-item.short { color: #DC2626; }
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}

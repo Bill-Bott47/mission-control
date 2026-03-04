@@ -56,6 +56,12 @@
             </nav>
         </aside>
         <main class="main">
+            <section class="ticker global-ticker" aria-label="Trading signal ticker">
+                <div class="ticker-label">SIGNALS</div>
+                <div class="ticker-track" id="global-ticker-track">
+                    <div class="ticker-item">Loading...</div>
+                </div>
+            </section>
             {% block content %}{% endblock %}
         </main>
     </div>

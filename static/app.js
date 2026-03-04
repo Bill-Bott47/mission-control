@@ -35,7 +35,7 @@ class Dashboard {
     }
 
     renderSignals(items) {
-        const track = document.getElementById('ticker-track');
+        const track = document.getElementById('ticker-track') || document.getElementById('global-ticker-track');
         if (!items || items.length === 0) {
             track.innerHTML = '<div class="ticker-item">No signals available</div>';
             return;

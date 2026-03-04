@@ -7,8 +7,35 @@ class Shell {
 
     init() {
         this.updateApprovalsBadge();
-        // Update badge every 30 seconds
+        this.loadGlobalTicker();
         setInterval(() => this.updateApprovalsBadge(), 30000);
+        setInterval(() => this.loadGlobalTicker(), 30000);
+    }
+
+    async loadGlobalTicker() {
+        const track = document.getElementById('global-ticker-track');
+        if (!track) return;
+        try {
+            const resp = await fetch('/api/signals');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const items = data.items || [];
+            if (items.length === 0) {
+                track.innerHTML = '<div class="ticker-item">No signals</div>';
+                return;
+            }
+            // Double the items for seamless scroll loop
+            const html = items.concat(items).map(item => {
+                const dir = (item.direction || '').toLowerCase();
+                const price = item.price ? ` ${item.price}` : '';
+                const funding = item.funding ? ` (${item.funding})` : '';
+                const conf = item.confidence ? ` ${item.confidence}` : '';
+                return `<div class="ticker-item ${dir}">${item.symbol}${price}${funding}${conf}</div>`;
+            }).join('');
+            track.innerHTML = html;
+        } catch (e) {
+            console.warn('Ticker fetch failed:', e);
+        }
     }
 
     async updateApprovalsBadge() {

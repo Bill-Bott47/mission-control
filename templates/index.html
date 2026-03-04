@@ -4,13 +4,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
 {% endblock %}
 {% block content %}
-<section class="ticker" aria-label="Trading signal ticker">
-    <div class="ticker-label">Signal Tape</div>
-    <div class="ticker-track" id="ticker-track">
-        <div class="ticker-item">Loading signals...</div>
-    </div>
-</section>
-
 <section class="dashboard-grid">
     <div class="card" id="crew-card">
         <div class="card-header">
