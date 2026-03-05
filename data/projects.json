@@ -2,29 +2,47 @@
     {
         "id": "phoenix-agency",
         "name": "Phoenix Marketing Agency",
-        "description": "Web3/web2 marketing agency — $80K/mo, 5 clients (Benqi, Pharaoh, Magic Eden, Bullet, Pro Rata). Scaling services.",
+        "description": "Web3/web2 marketing agency \u2014 $80K/mo, 5 clients (Benqi, Pharaoh, Magic Eden, Bullet, Pro Rata). Scaling services.",
         "status": "live",
         "priority": "P1",
-        "priority_why": "Primary business — all revenue flows here",
+        "priority_why": "Primary business \u2014 all revenue flows here",
         "owner": "Jonathan",
-        "team": ["Jonathan", "Bryan", "Alex", "Sam", "Hunter"],
+        "team": [
+            "Jonathan",
+            "Bryan",
+            "Alex",
+            "Sam",
+            "Hunter"
+        ],
         "discord_channel": "#phoenix-strategy",
         "progress": 85,
-        "tags": ["agency", "business", "revenue"]
+        "tags": [
+            "agency",
+            "business",
+            "revenue"
+        ]
     },
     {
         "id": "mission-control",
         "name": "Mission Control v2",
-        "description": "Unified ops dashboard — sidebar nav, 12 pages, live data from gateway + pai. Alex Finn design reference.",
+        "description": "Unified ops dashboard \u2014 sidebar nav, 12 pages, live data from gateway + pai. Alex Finn design reference.",
         "status": "building",
         "priority": "P1",
         "priority_why": "Jonathan's primary interface to the entire system",
         "owner": "Bob",
-        "team": ["Bob", "Bill", "Forge"],
+        "team": [
+            "Bob",
+            "Bill",
+            "Forge"
+        ],
         "discord_channel": "#bill-direct",
         "github_repo": "Bill-Bott47/mission-control",
         "progress": 70,
-        "tags": ["infrastructure", "dashboard", "active"]
+        "tags": [
+            "infrastructure",
+            "dashboard",
+            "active"
+        ]
     },
     {
         "id": "trading-systems",
@@ -32,12 +50,20 @@
         "description": "Institutional-grade trading signals, scanner bots, market data API on pai. ICT + Shark signals.",
         "status": "live",
         "priority": "P1",
-        "priority_why": "Jonathan's trading income — signals must be accurate",
+        "priority_why": "Jonathan's trading income \u2014 signals must be accurate",
         "owner": "Shark",
-        "team": ["Shark", "Bill"],
+        "team": [
+            "Shark",
+            "Bill"
+        ],
         "discord_channel": "#trading-systems",
         "progress": 60,
-        "tags": ["trading", "bots", "pai", "active"]
+        "tags": [
+            "trading",
+            "bots",
+            "pai",
+            "active"
+        ]
     },
     {
         "id": "vitruviano",
@@ -45,179 +71,297 @@
         "description": "iOS/Android fitness app for Vitruvian Trainer+ with BLE. Free/Pro $9.99/mo. Design system + FastAPI backend started.",
         "status": "planning",
         "priority": "P2",
-        "priority_why": "Revenue opportunity — MVP needed before Jonathan can test",
+        "priority_why": "Revenue opportunity \u2014 MVP needed before Jonathan can test",
         "owner": "Vitruviano PM",
-        "team": ["Vitruviano PM", "Bob", "ACE"],
+        "team": [
+            "Vitruviano PM",
+            "Bob",
+            "ACE"
+        ],
         "discord_channel": "#vitruviano",
         "github_repo": "Bill-Bott47/vitruvian-phoenix",
         "progress": 25,
-        "tags": ["fitness", "app", "revenue"]
+        "tags": [
+            "fitness",
+            "app",
+            "revenue"
+        ]
     },
     {
         "id": "content-pipeline",
         "name": "Content Pipeline",
-        "description": "Automated content flow: research → scripting → visual → publishing. Agents: Quill, Pixel, Scrub, Content PM.",
+        "description": "Automated content flow: research \u2192 scripting \u2192 visual \u2192 publishing. Agents: Quill, Pixel, Scrub, Content PM.",
         "status": "building",
         "priority": "P2",
         "priority_why": "Scales Jonathan's content output without his time",
         "owner": "Content PM",
-        "team": ["Content PM", "Quill", "Pixel", "Scrub", "Marty"],
+        "team": [
+            "Content PM",
+            "Quill",
+            "Pixel",
+            "Scrub",
+            "Marty"
+        ],
         "discord_channel": "#content-lab",
         "progress": 40,
-        "tags": ["content", "automation"]
+        "tags": [
+            "content",
+            "automation"
+        ]
     },
     {
         "id": "music-biz",
         "name": "Music Curation Business",
-        "description": "Premium playlist curation — Redstone American Grill (10 MN locations, ~$15K/yr). Targeting regional upscale chains.",
+        "description": "Premium playlist curation \u2014 Redstone American Grill (10 MN locations, ~$15K/yr). Targeting regional upscale chains.",
         "status": "live",
         "priority": "P2",
         "priority_why": "Recurring revenue, low maintenance, expansion potential",
         "owner": "Music Biz",
-        "team": ["Music Biz", "Jonathan"],
+        "team": [
+            "Music Biz",
+            "Jonathan"
+        ],
         "discord_channel": "#music-biz",
         "progress": 90,
-        "tags": ["music", "client", "revenue"]
+        "tags": [
+            "music",
+            "client",
+            "revenue"
+        ]
     },
     {
         "id": "bills-business",
         "name": "Bill's Business (AgentOS)",
-        "description": "Scale Bill as a product — $1M ARR target. Sell agent setup/management as a service.",
+        "description": "Scale Bill as a product \u2014 $1M ARR target. Sell agent setup/management as a service.",
         "status": "planning",
         "priority": "P2",
-        "priority_why": "Jonathan's goal #4 — build Bill into a revenue stream",
+        "priority_why": "Jonathan's goal #4 \u2014 build Bill into a revenue stream",
         "owner": "Jonathan",
-        "team": ["Jonathan", "Bill", "Sam"],
+        "team": [
+            "Jonathan",
+            "Bill",
+            "Sam"
+        ],
         "discord_channel": "#ventures",
         "progress": 5,
-        "tags": ["business", "revenue", "venture"]
+        "tags": [
+            "business",
+            "revenue",
+            "venture"
+        ]
     },
     {
         "id": "council-system",
         "name": "Agent Council System",
-        "description": "Multi-agent idea vetting — Content, Business, and Project councils filter ideas before Jonathan.",
+        "description": "Multi-agent idea vetting \u2014 Content, Business, and Project councils filter ideas before Jonathan.",
         "status": "planning",
         "priority": "P2",
-        "priority_why": "Reduces noise — only vetted ideas reach approval queue",
+        "priority_why": "Reduces noise \u2014 only vetted ideas reach approval queue",
         "owner": "Bill",
-        "team": ["All Agents"],
+        "team": [
+            "All Agents"
+        ],
         "discord_channel": "#agent-lab",
         "progress": 10,
-        "tags": ["agents", "workflow", "new"]
+        "tags": [
+            "agents",
+            "workflow",
+            "new"
+        ]
     },
     {
         "id": "pai-infrastructure",
         "name": "pai Compute Infrastructure",
-        "description": "Ubuntu box — RTX 3060+3070 Ti (20GB VRAM), 64GB RAM, Ollama, market API, trading bots. IP: 192.168.1.189.",
+        "description": "Ubuntu box \u2014 RTX 3060+3070 Ti (20GB VRAM), 64GB RAM, Ollama, market API, trading bots. IP: 192.168.1.189.",
         "status": "live",
         "priority": "P1",
         "priority_why": "Runs all local AI models and trading infrastructure",
         "owner": "Bill",
-        "team": ["Bill", "SENTINEL"],
+        "team": [
+            "Bill",
+            "SENTINEL"
+        ],
         "discord_channel": "#infrastructure",
         "progress": 80,
-        "tags": ["infrastructure", "compute", "pai"]
+        "tags": [
+            "infrastructure",
+            "compute",
+            "pai"
+        ]
     },
     {
         "id": "emma",
         "name": "Emma (Cate's AI)",
-        "description": "Separate OpenClaw instance for Cate — Telegram @claemmabot, Opus model, port 18790. macOS user isolation.",
+        "description": "Separate OpenClaw instance for Cate \u2014 Telegram @claemmabot, Opus model, port 18790. macOS user isolation.",
         "status": "building",
         "priority": "P3",
-        "priority_why": "Family — Cate wants her own assistant",
+        "priority_why": "Family \u2014 Cate wants her own assistant",
         "owner": "Bill",
-        "team": ["Bill"],
+        "team": [
+            "Bill"
+        ],
         "progress": 50,
-        "tags": ["family", "infrastructure"]
+        "tags": [
+            "family",
+            "infrastructure"
+        ]
     },
     {
         "id": "youtube-agent",
         "name": "YouTube Agent",
-        "description": "Dedicated agent for Jonathan's YouTube — competitor thumbnails, research, scripting, scheduling.",
+        "description": "Dedicated agent for Jonathan's YouTube \u2014 competitor thumbnails, research, scripting, scheduling.",
         "status": "planning",
         "priority": "P2",
-        "priority_why": "Content channel with high leverage — needs dedicated agent",
+        "priority_why": "Content channel with high leverage \u2014 needs dedicated agent",
         "owner": "Bill",
-        "team": ["Scrub", "Pixel", "Quill"],
+        "team": [
+            "Scrub",
+            "Pixel",
+            "Quill"
+        ],
         "discord_channel": "#content-lab",
         "progress": 10,
-        "tags": ["content", "youtube"]
+        "tags": [
+            "content",
+            "youtube"
+        ]
     },
     {
         "id": "trader-monitor",
         "name": "Trader Monitor Rebuild",
-        "description": "Style classification + edge detection from Twitter trader signals (Mandelbrot, fejau, etc). Option 2 → Option 4.",
+        "description": "Style classification + edge detection from Twitter trader signals (Mandelbrot, fejau, etc). Option 2 \u2192 Option 4.",
         "status": "planning",
         "priority": "P2",
-        "priority_why": "Core trading intelligence — parse what top traders are doing",
+        "priority_why": "Core trading intelligence \u2014 parse what top traders are doing",
         "owner": "Shark",
-        "team": ["Shark", "Bill"],
+        "team": [
+            "Shark",
+            "Bill"
+        ],
         "discord_channel": "#trading-systems",
         "progress": 15,
-        "tags": ["trading", "signals"]
+        "tags": [
+            "trading",
+            "signals"
+        ]
     },
     {
         "id": "outbound-engine",
         "name": "Phoenix Outbound Engine",
-        "description": "AI-powered prospecting pipeline for web3 leads — automated research + outreach.",
+        "description": "AI-powered prospecting pipeline for web3 leads \u2014 automated research + outreach.",
         "status": "building",
         "priority": "P2",
         "priority_why": "Scale Phoenix's client acquisition beyond warm referrals",
         "owner": "Bill",
-        "team": ["Bill", "Sam", "Scout"],
+        "team": [
+            "Bill",
+            "Sam",
+            "Scout"
+        ],
         "discord_channel": "#outbound-engine",
         "progress": 20,
-        "tags": ["phoenix", "sales", "automation"]
+        "tags": [
+            "phoenix",
+            "sales",
+            "automation"
+        ]
     },
     {
         "id": "health-tracking",
         "name": "Health Data Integration",
-        "description": "Withings scale + Oura ring + Apple Watch → morning brief. Food tracker in #food-tracker.",
+        "description": "Withings scale + Oura ring + Apple Watch \u2192 morning brief. Food tracker in #food-tracker.",
         "status": "building",
         "priority": "P2",
-        "priority_why": "Jonathan's goal #3 — weight loss, muscle gain, data-driven",
+        "priority_why": "Jonathan's goal #3 \u2014 weight loss, muscle gain, data-driven",
         "owner": "ACE",
-        "team": ["ACE", "Bill"],
+        "team": [
+            "ACE",
+            "Bill"
+        ],
         "discord_channel": "#fitness",
         "progress": 45,
-        "tags": ["health", "fitness", "data"]
+        "tags": [
+            "health",
+            "fitness",
+            "data"
+        ]
     },
     {
         "id": "videri",
         "name": "Videri Digital Display",
-        "description": "Hacking Videri DPC430 Android display — UART serial console needed for root access. CH340 adapter ordered.",
+        "description": "Hacking Videri DPC430 Android display \u2014 UART serial console needed for root access. CH340 adapter ordered.",
         "status": "blocked",
         "priority": "P3",
-        "priority_why": "Hardware project — waiting on USB-to-TTL adapter delivery",
+        "priority_why": "Hardware project \u2014 waiting on USB-to-TTL adapter delivery",
         "owner": "Bill",
-        "team": ["Bill", "Jonathan"],
+        "team": [
+            "Bill",
+            "Jonathan"
+        ],
         "progress": 60,
-        "tags": ["hardware", "android"]
+        "tags": [
+            "hardware",
+            "android"
+        ]
     },
     {
         "id": "sentinel",
         "name": "SENTINEL Infrastructure Monitor",
-        "description": "Automated infra monitoring — provider health, pai status, model routing, cost optimization.",
+        "description": "Automated infra monitoring \u2014 provider health, pai status, model routing, cost optimization.",
         "status": "live",
         "priority": "P2",
         "priority_why": "Prevents outages and cost overruns automatically",
         "owner": "SENTINEL",
-        "team": ["SENTINEL", "Bill"],
+        "team": [
+            "SENTINEL",
+            "Bill"
+        ],
         "discord_channel": "#infrastructure",
         "progress": 75,
-        "tags": ["infrastructure", "monitoring"]
+        "tags": [
+            "infrastructure",
+            "monitoring"
+        ]
     },
     {
         "id": "web3-research",
         "name": "Web3 Research Agent",
-        "description": "Automated competitor and market research for Phoenix clients — daily intel drops.",
+        "description": "Automated competitor and market research for Phoenix clients \u2014 daily intel drops.",
         "status": "live",
         "priority": "P2",
         "priority_why": "Keeps Phoenix ahead of market trends for client strategy",
         "owner": "Scout",
-        "team": ["Scout", "Sam"],
+        "team": [
+            "Scout",
+            "Sam"
+        ],
         "discord_channel": "#competitive-intel",
         "progress": 70,
-        "tags": ["phoenix", "research"]
+        "tags": [
+            "phoenix",
+            "research"
+        ]
+    },
+    {
+        "id": "voice-feedback-bot",
+        "name": "Discord Voice Feedback Bot",
+        "description": "Voice channel listener \u2014 Jonathan talks, bot transcribes via local Whisper, parses into tasks automatically. Fully local stack.",
+        "status": "active",
+        "priority": "P2",
+        "priority_why": "Unlocks fastest feedback loop \u2014 talk instead of type",
+        "owner": "Bob",
+        "team": [
+            "Bob",
+            "Bill"
+        ],
+        "progress": 5,
+        "tasks": [
+            "T-116",
+            "T-117",
+            "T-118",
+            "T-119",
+            "T-120"
+        ],
+        "created": "2026-03-05"
     }
 ]
