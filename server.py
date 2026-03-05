@@ -1196,10 +1196,10 @@ def _normalize_minimax_usage(payload):
 
     def _find_model_list(obj):
         if isinstance(obj, list):
-            if obj and isinstance(obj[0], dict) and any(k in obj[0] for k in ("model", "modelName", "name")):
+            if obj and isinstance(obj[0], dict) and any(k in obj[0] for k in ("model", "modelName", "name", "model_name")):
                 return obj
         if isinstance(obj, dict):
-            for key in ("models", "modelList", "model_list", "remains", "items", "plans", "planList"):
+            for key in ("models", "modelList", "model_list", "model_remains", "remains", "items", "plans", "planList"):
                 value = obj.get(key)
                 if value is not None:
                     found = _find_model_list(value)
@@ -1213,8 +1213,8 @@ def _normalize_minimax_usage(payload):
             if not isinstance(item, dict):
                 continue
             name = item.get("model") or item.get("modelName") or item.get("model_name") or item.get("name")
-            used = item.get("used") or item.get("usedCount") or item.get("used_count") or item.get("usage") or item.get("countUsed")
-            total = item.get("total") or item.get("totalCount") or item.get("limit") or item.get("countTotal")
+            used = item.get("used") or item.get("usedCount") or item.get("used_count") or item.get("usage") or item.get("countUsed") or item.get("current_interval_usage_count")
+            total = item.get("total") or item.get("totalCount") or item.get("limit") or item.get("countTotal") or item.get("current_interval_total_count")
             remaining = item.get("remaining") or item.get("remain") or item.get("remainingCount") or item.get("left")
             if remaining is None and used is not None and total is not None:
                 try:
@@ -1236,6 +1236,13 @@ def _normalize_minimax_usage(payload):
         if isinstance(data, dict) and key in data:
             remaining_seconds = data.get(key)
             break
+    # MiniMax uses remains_time in milliseconds on individual models
+    if remaining_seconds is None and model_list:
+        for item in model_list:
+            rt = item.get("remains_time")
+            if rt and isinstance(rt, (int, float)):
+                remaining_seconds = rt / 1000
+                break
 
     window_remaining = None
     if isinstance(remaining_seconds, (int, float)):
@@ -1811,27 +1818,27 @@ def api_usage_providers():
     providers = [
         {
             "key": "claude",
-            "name": "Claude",
-            "cost": "$100/mo",
-            "usage": "Jonathan Telegram only",
-            "status": get_status("claude", "unknown"),
-            "note": (provider_health.get("claude", {}) or {}).get("note", ""),
+            "name": "Claude (Opus + Sonnet)",
+            "cost": "$200/mo (Max plan)",
+            "usage": "Opus: Telegram DM + #bill-direct. Sonnet: Forge, Truth, Content PM (when quota available)",
+            "status": get_status("claude", "ok"),
+            "note": (provider_health.get("claude", {}) or {}).get("note", "Weekly rolling limits per model"),
         },
         {
             "key": "openai",
-            "name": "ChatGPT / Codex",
-            "cost": "$20/mo",
-            "usage": "Coding tasks",
-            "status": get_status("openai", "unknown"),
-            "note": (provider_health.get("openai", {}) or {}).get("note", ""),
+            "name": "OpenAI Codex / GPT-5.2",
+            "cost": "$200/mo (ChatGPT Pro)",
+            "usage": "Forge, Bob, Canvas, Truth, Ops + coding sub-agents",
+            "status": get_status("openai", "ok"),
+            "note": (provider_health.get("openai", {}) or {}).get("note", "Primary coding + reasoning model"),
         },
         {
             "key": "minimax",
             "name": "MiniMax M2.5",
-            "cost": "$20/mo",
-            "usage": "Content channels",
-            "status": get_status("minimax", "unknown"),
-            "note": (provider_health.get("minimax", {}) or {}).get("note", ""),
+            "cost": "Free tier (4,500/5hr rolling)",
+            "usage": "Pixel, Music Biz, Content PM, Marty, Sam + Discord content channels",
+            "status": get_status("minimax", "ok"),
+            "note": (provider_health.get("minimax", {}) or {}).get("note", "Rolling window — credits free up continuously"),
         },
         {
             "key": "deepseek",
