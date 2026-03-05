@@ -2024,7 +2024,7 @@ def api_usage_providers():
         {
             "key": "openai",
             "name": "OpenAI Codex / GPT-5.2",
-            "cost": "$200/mo (ChatGPT Pro)",
+            "cost": "$20/mo (ChatGPT Plus)",
             "usage": "Forge, Bob, Canvas, Truth, Ops + coding sub-agents",
             "status": get_status("openai", "ok"),
             "note": (provider_health.get("openai", {}) or {}).get("note", "Primary coding + reasoning model"),
