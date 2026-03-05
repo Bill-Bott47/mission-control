@@ -263,6 +263,28 @@
     margin-bottom: 6px;
 }
 
+.task-group-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.task-group-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-primary);
+    border-radius: 10px;
+    padding: 10px;
+    display: grid;
+    gap: 6px;
+}
+
+.task-group-box h4 {
+    font-size: 12px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
 .detail-row {
     display: flex;
     gap: 8px;
@@ -287,4 +309,10 @@
     font-size: 12px;
     color: var(--text-secondary);
     white-space: pre-wrap;
+}
+
+@media (max-width: 860px) {
+    .task-group-grid {
+        grid-template-columns: 1fr;
+    }
 }

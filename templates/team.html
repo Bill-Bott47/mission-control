@@ -13,6 +13,18 @@
     </div>
 </header>
 
+<section class="process-section">
+    <h2>Rules of the Road</h2>
+    <div class="process-grid">
+        <div class="process-rule">
+            <strong>Code Path:</strong> Bob builds, Forge reviews, Truth verifies, then deploy.
+        </div>
+        <div class="process-rule">
+            <strong>Escalation:</strong> Two consecutive Forge FAILs or any security/financial risk escalates to Jonathan.
+        </div>
+    </div>
+</section>
+
 <div class="team-grid">
     {% for agent in agents %}
     <div class="agent-card status-{{ agent.status }} agent-{{ agent.slug }}" data-slug="{{ agent.slug }}">

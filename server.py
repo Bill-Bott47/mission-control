@@ -1122,6 +1122,27 @@ TEAM_PROMPT_FILES = {
     "sentinel": "sentinel-prompt.md",
 }
 
+TEAM_SOUL_EXCERPTS = {
+    "bill": "Chief orchestrator. Decides priorities, routes work, and keeps the operating rhythm aligned with Jonathan's goals.",
+    "bob": "Build engineer. Ships production-grade features with tight feedback loops and direct accountability.",
+    "forge": "QA and hardening specialist. Breaks assumptions, finds edge cases, and enforces release quality.",
+    "truth": "Audit and verification lead. Checks claims against evidence and blocks false confidence.",
+    "shark": "Markets operator. Generates directional setups with risk-aware entries and exits.",
+    "ace": "Health performance coach. Turns signals into practical training and nutrition actions.",
+    "sam": "Business strategist. Prioritizes leverage, sequencing, and downside control.",
+    "marty": "Growth engine. Crafts GTM and campaign messaging that converts.",
+    "quill": "Narrative writer. Converts ideas into high-clarity, high-retention content.",
+    "pixel": "Design lead. Translates strategy into visual systems that ship.",
+    "scrub": "Research analyst. Surfaces signal through noisy sources fast.",
+    "scout": "Opportunity scout. Finds new markets, clients, and channels early.",
+    "content-pm": "Pipeline manager. Drives content from intake to approved publishing.",
+    "librarian": "Knowledge curator. Keeps docs and memory consistent and findable.",
+    "music-biz": "Curation operator. Balances brand fit with scalable process.",
+    "vitruviano-pm": "Product owner for AUREA. Converts fitness goals into scoped releases.",
+    "ops": "Infra operator. Keeps uptime, deployment, and observability stable.",
+    "sentinel": "Monitoring guardian. Detects provider drift and routes mitigation fast.",
+}
+
 
 def _load_team_roster():
     """Hardcoded roster for Mission Control v2."""
@@ -1342,37 +1363,59 @@ def _apply_team_status(agents):
     timeline = _build_message_timeline(limit=500)
     cron_jobs = _load_cron_jobs_live()
     cron_last = {}
+    cron_next = {}
+    cron_errors = {}
     for job in cron_jobs:
-        agent_id = str(job.get("agentId") or job.get("agent") or "main").lower()
+        agent_id = _normalize_agent_value(job.get("agentId") or job.get("agent") or "main")
         last_run_ms = job.get("state", {}).get("lastRunAtMs") or 0
+        next_run_ms = job.get("state", {}).get("nextRunAtMs") or 0
+        last_status = (job.get("state", {}).get("lastRunStatus") or "").lower()
         if last_run_ms and last_run_ms > cron_last.get(agent_id, 0):
             cron_last[agent_id] = last_run_ms
+        if next_run_ms and next_run_ms > cron_next.get(agent_id, 0):
+            cron_next[agent_id] = next_run_ms
+        if last_status == "error":
+            cron_errors[agent_id] = cron_errors.get(agent_id, 0) + 1
 
     for agent in agents:
         last_ts = 0
+        keys = _agent_match_keys(agent)
         for entry in timeline:
-            agent_name = str(entry.get("agent", "")).lower()
-            if agent["name"].lower() in agent_name:
-                last_ts = entry.get("timestamp_epoch", 0)
+            entry_agent = _normalize_agent_value(entry.get("agent", ""))
+            if not entry_agent:
+                continue
+            if entry_agent in keys or any(k and k in entry_agent for k in keys):
+                ts = entry.get("timestamp_epoch", 0)
+                if ts and ts > last_ts:
+                    last_ts = ts
                 break
 
-        slug = str(agent.get("slug", "")).lower()
+        slug = _normalize_agent_value(agent.get("slug", ""))
         cron_key = "main" if slug in ("bill", "main") else slug
         cron_last_ts = cron_last.get(cron_key, 0)
         if cron_last_ts:
             last_ts = max(last_ts, cron_last_ts / 1000)
 
-        agent["last_active"] = _format_relative_time(last_ts)
+        if last_ts:
+            agent["last_active"] = _format_relative_time(last_ts)
+        elif cron_next.get(cron_key):
+            agent["last_active"] = "scheduled"
+        else:
+            agent["last_active"] = "—"
+
+        has_errors = cron_errors.get(cron_key, 0) > 0
         if not last_ts:
-            agent["status"] = "offline"
+            agent["status"] = "idle" if cron_next.get(cron_key) else "offline"
         else:
             age_minutes = (time.time() - last_ts) / 60
-            if age_minutes <= 15:
+            if age_minutes <= 30:
                 agent["status"] = "online"
-            elif age_minutes <= 240:
+            elif age_minutes <= 720:
                 agent["status"] = "idle"
             else:
                 agent["status"] = "offline"
+        if has_errors:
+            agent["status"] = "idle"
 
     return agents
 
@@ -1554,6 +1597,34 @@ def api_team_detail(slug):
                 "assigned_agent": row["assigned_agent"],
             })
 
+    status_rank = {
+        "IN PROGRESS": 0,
+        "INBOX": 1,
+        "TODO": 1,
+        "TO DO": 1,
+        "BLOCKED": 2,
+        "DONE": 3,
+        "COMPLETED": 3,
+    }
+    tasks.sort(key=lambda t: (status_rank.get((t.get("column") or "").upper(), 4), int(t.get("id") or 0)))
+
+    grouped_tasks = {
+        "working_on": [],
+        "next_up": [],
+        "blocked": [],
+        "completed": [],
+    }
+    for task in tasks:
+        col = (task.get("column") or "").upper()
+        if col == "IN PROGRESS":
+            grouped_tasks["working_on"].append(task)
+        elif col in ("INBOX", "TODO", "TO DO", "REVIEW"):
+            grouped_tasks["next_up"].append(task)
+        elif col == "BLOCKED":
+            grouped_tasks["blocked"].append(task)
+        else:
+            grouped_tasks["completed"].append(task)
+
     cron_jobs = _load_cron_jobs_live()
     next_runs = []
     for job in cron_jobs:
@@ -1568,6 +1639,8 @@ def api_team_detail(slug):
     next_runs.sort(key=lambda r: r.get("next_run_at") or 0)
 
     prompt_excerpt = ""
+    prompt_content = ""
+    rules_confirmed = False
     prompt_file = TEAM_PROMPT_FILES.get(agent.get("slug")) if agent.get("slug") else None
     if not prompt_file and agent.get("slug"):
         prompt_file = f"{agent['slug']}-prompt.md"
@@ -1575,16 +1648,24 @@ def api_team_detail(slug):
         prompt_path = os.path.join("/Users/bill/.openclaw/workspace/agents", prompt_file)
         if os.path.exists(prompt_path):
             try:
-                content = Path(prompt_path).read_text(encoding="utf-8")
-                prompt_excerpt = " ".join(content.strip().split())[:200]
+                prompt_content = Path(prompt_path).read_text(encoding="utf-8")
+                prompt_excerpt = " ".join(prompt_content.strip().split())[:320]
             except Exception:
                 prompt_excerpt = ""
+                prompt_content = ""
+    if not prompt_excerpt:
+        prompt_excerpt = TEAM_SOUL_EXCERPTS.get(agent.get("slug"), agent.get("notes") or "")
+
+    prompt_lower = prompt_content.lower()
+    rules_confirmed = all(term in prompt_lower for term in ("process", "rule", "escalation")) if prompt_lower else True
 
     return jsonify({
         "agent": agent,
         "tasks": tasks,
+        "task_groups": grouped_tasks,
         "next_runs": next_runs,
         "prompt_excerpt": prompt_excerpt,
+        "rules_confirmed": rules_confirmed,
     })
 
 
