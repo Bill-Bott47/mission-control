@@ -40,19 +40,30 @@ async function loadSignalsPage() {
 }
 
 function renderSignals(items) {
-  const grid = document.getElementById('signals-grid');
+  const longsEl = document.getElementById('signals-longs');
+  const shortsEl = document.getElementById('signals-shorts');
   const note = document.getElementById('signals-note');
-  grid.innerHTML = '';
+  longsEl.innerHTML = '';
+  shortsEl.innerHTML = '';
   if (note) note.classList.add('hidden');
   if (!items.length) {
-    grid.innerHTML = '<div class="placeholder">No signals available.</div>';
+    longsEl.innerHTML = '<div class="placeholder">No signals available.</div>';
+    shortsEl.innerHTML = '<div class="placeholder">No signals available.</div>';
     return;
   }
 
+  const sorted = [...items].sort((a, b) => {
+    const at = new Date(a.time || a.timestamp || a.created_at || 0).getTime() || 0;
+    const bt = new Date(b.time || b.timestamp || b.created_at || 0).getTime() || 0;
+    return bt - at;
+  });
+
+  const longs = sorted.filter((item) => (item.direction || '').toLowerCase() === 'long');
+  const shorts = sorted.filter((item) => (item.direction || '').toLowerCase() === 'short');
   let allMissingLevels = true;
-  items.forEach((item) => {
-    const card = document.createElement('div');
-    card.className = 'signal-card';
+  const buildRow = (item) => {
+    const row = document.createElement('div');
+    row.className = 'signal-row';
     const dir = (item.direction || '').toLowerCase();
     const time = item.time || item.timestamp || item.created_at || '—';
     const pattern = item.pattern || item.setup || item.model || '—';
@@ -64,33 +75,34 @@ function renderSignals(items) {
     const sl = asDisplay(rawSl);
     const tp1 = asDisplay(rawTp1);
     const tp2 = asDisplay(rawTp2);
-    const asset = item.symbol || item.asset || item.pair || '—';
+    const symbol = item.symbol || item.asset || item.pair || '—';
+    const assetName = item.asset_name || symbol;
     if (!isMissingLevel(rawSl) || !isMissingLevel(rawTp1) || !isMissingLevel(rawTp2)) {
       allMissingLevels = false;
     }
 
-    card.innerHTML = `
-      <div class="signal-header">
-        <div class="signal-asset">${asset}</div>
-        <div class="signal-direction ${dir}">${(item.direction || '—').toUpperCase()}</div>
+    row.innerHTML = `
+      <div class="signal-line-1">
+        <span class="signal-direction ${dir}">${(item.direction || '—').toUpperCase()}</span>
+        <span class="signal-asset">${assetName}</span>
+        <span class="signal-symbol">${symbol}</span>
       </div>
-      <div class="signal-meta">
-        <div><strong>Time:</strong> ${time === '—' ? '—' : new Date(time).toLocaleString()}</div>
-        <div><strong>Pattern:</strong> ${pattern}</div>
-        <div><strong>Confidence:</strong> ${confidence}</div>
-        <div><strong>Entry:</strong> ${entry}</div>
-      </div>
-      <div class="signal-levels">
-        <div class="signal-level"><strong>SL:</strong> ${sl}</div>
-        <div class="signal-level"><strong>TP1:</strong> ${tp1}</div>
-        <div class="signal-level"><strong>TP2:</strong> ${tp2}</div>
-      </div>
-      <div class="signal-actions">
-        <a href="https://discord.com/channels/1475879552101257328/1475882686840311982" target="_blank" rel="noopener noreferrer">View in Discord</a>
+      <div class="signal-line-2">
+        <span>${time === '—' ? '—' : new Date(time).toLocaleString()}</span>
+        <span>${pattern}</span>
+        <span>${confidence}</span>
+        <span>Entry ${entry}</span>
+        <span>TP ${tp1}</span>
+        <span>SL ${sl}</span>
       </div>
     `;
-    grid.appendChild(card);
-  });
+    return row;
+  };
+
+  longs.forEach((item) => longsEl.appendChild(buildRow(item)));
+  shorts.forEach((item) => shortsEl.appendChild(buildRow(item)));
+  if (!longs.length) longsEl.innerHTML = '<div class="placeholder">No long signals.</div>';
+  if (!shorts.length) shortsEl.innerHTML = '<div class="placeholder">No short signals.</div>';
 
   if (note && allMissingLevels) {
     note.textContent = 'SL/TP auto-calculation coming soon';

@@ -20,31 +20,30 @@
   color: var(--text-secondary);
 }
 
-.signals-grid {
+.signals-columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
 }
 
-.signal-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: 12px;
-  padding: 14px;
+.signals-col h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.signals-list {
   display: grid;
   gap: 8px;
 }
 
-.signal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.signal-asset {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
+.signal-row {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .signal-direction {
@@ -65,30 +64,33 @@
   color: var(--danger);
 }
 
-.signal-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-  display: grid;
-  gap: 4px;
+.signal-line-1 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
-.signal-levels {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.signal-asset {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.signal-symbol {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.signal-line-2 {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 12px;
+  color: var(--text-secondary);
 }
 
-.signal-level {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border-primary);
-  border-radius: 10px;
-  padding: 6px 8px;
-}
-
-.signal-actions a {
-  color: #a78bfa;
-  text-decoration: none;
-  font-size: 12px;
-  font-weight: 600;
+@media (max-width: 900px) {
+  .signals-columns {
+    grid-template-columns: 1fr;
+  }
 }

@@ -11,7 +11,16 @@
 
 <div id="signals-stale" class="stale-badge hidden"></div>
 <div id="signals-note" class="signals-note hidden"></div>
-<div class="signals-grid" id="signals-grid"></div>
+<section class="signals-columns">
+    <div class="signals-col">
+        <h2>Longs</h2>
+        <div class="signals-list" id="signals-longs"></div>
+    </div>
+    <div class="signals-col">
+        <h2>Shorts</h2>
+        <div class="signals-list" id="signals-shorts"></div>
+    </div>
+</section>
 {% endblock %}
 
 {% block scripts %}

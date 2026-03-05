@@ -59,6 +59,31 @@ DISCORD_CHANNEL_MAP = {
     "1478038599181275177": "#bill-direct",
 }
 
+ASSET_NAME_MAP = {
+    "BTC": "Bitcoin",
+    "ETH": "Ethereum",
+    "SOL": "Solana",
+    "BNB": "BNB",
+    "XRP": "XRP",
+    "DOGE": "Dogecoin",
+    "ADA": "Cardano",
+    "AVAX": "Avalanche",
+    "DOT": "Polkadot",
+    "LINK": "Chainlink",
+    "UNI": "Uniswap",
+    "AAVE": "Aave",
+    "MATIC": "Polygon",
+    "ARB": "Arbitrum",
+    "OP": "Optimism",
+    "SUI": "Sui",
+    "NEAR": "NEAR",
+    "ATOM": "Cosmos",
+    "LTC": "Litecoin",
+    "BCH": "Bitcoin Cash",
+    "SPY": "SPDR S&P 500 ETF",
+    "NVDA": "NVIDIA",
+}
+
 VALID_MESSAGE_SOURCES = {'agent', 'job'}
 VALID_MESSAGE_LEVELS = {'info', 'warn', 'error'}
 VALID_MESSAGE_KINDS = {
@@ -1667,6 +1692,18 @@ def _extract_signal_items(text):
     return items[:12]
 
 
+def _infer_symbol_from_text(raw_text):
+    if not raw_text:
+        return ""
+    # Prefer known tickers first to avoid false positives.
+    upper = str(raw_text).upper()
+    for ticker in ASSET_NAME_MAP.keys():
+        if re.search(rf"\b{re.escape(ticker)}\b", upper):
+            return ticker
+    generic = re.search(r"\b([A-Z]{2,10})\b", upper)
+    return generic.group(1) if generic else ""
+
+
 def _parse_shark_snapshot(snapshot_path):
     items = []
     snapshot_time = None
@@ -1710,16 +1747,17 @@ def _parse_shark_snapshot(snapshot_path):
             "raw": m.group(0),
         })
 
-    # Format 2: NEW — "🔴 SFP [HIGH] — bear_sfp @ swept $72,669.80"
+    # Format 2: NEW — "BTC: 🔴 SFP [HIGH] — bear_sfp @ swept $72,669.80"
     setup_pattern_new = re.compile(
-        r"[🔴🟢]\s+(\w+)\s+\[(HIGH|MEDIUM|LOW)\]\s+[—-]\s+(bull|bear)_(\w+)\s+@?\s*(?:swept\s+)?\$([0-9,\.]+)",
+        r"(?:([A-Z]{2,10})\s*[:\-]\s*)?[🔴🟢]\s+(\w+)\s+\[(HIGH|MEDIUM|LOW)\]\s+[—-]\s+(bull|bear)_(\w+)\s+@?\s*(?:swept\s+)?\$([0-9,\.]+)",
         re.IGNORECASE,
     )
     for m in setup_pattern_new.finditer(content):
-        pattern, confidence, direction, sub_pattern, price = m.groups()
+        symbol, pattern, confidence, direction, sub_pattern, price = m.groups()
+        raw = m.group(0)
         items.append({
             "source": "shark_snapshot",
-            "symbol": "",
+            "symbol": (symbol or _infer_symbol_from_text(raw)).upper(),
             "direction": "LONG" if direction.lower() == "bull" else "SHORT",
             "confidence": confidence.upper(),
             "pattern": pattern.upper(),
@@ -1729,22 +1767,22 @@ def _parse_shark_snapshot(snapshot_path):
             "sl": None,
             "tp1": None,
             "tp2": None,
-            "raw": m.group(0),
+            "raw": raw,
         })
 
-    # Format 3: NEW — "🟢 OB — bull_ob $82.43–$84.82" or "🟢 FVG — bull_fvg $87.51–$88.68"
+    # Format 3: NEW — "ETH: 🟢 OB — bull_ob $82.43–$84.82" or "🟢 FVG — bull_fvg $87.51–$88.68"
     zone_pattern = re.compile(
-        r"[🔴🟢]\s+(\w+)\s+[—-]\s+(bull|bear)_(\w+)\s+\$([0-9,\.]+)[–-]\$([0-9,\.]+)",
+        r"(?:([A-Z]{2,10})\s*[:\-]\s*)?[🔴🟢]\s+(\w+)\s+[—-]\s+(bull|bear)_(\w+)\s+\$([0-9,\.]+)[–-]\$([0-9,\.]+)",
         re.IGNORECASE,
     )
     for m in zone_pattern.finditer(content):
-        pattern, direction, sub_pattern, price_low, price_high = m.groups()
+        symbol, pattern, direction, sub_pattern, price_low, price_high = m.groups()
         # Avoid duplicate if already matched by setup_pattern_new
         raw = m.group(0)
         if not any(i["raw"] == raw for i in items):
             items.append({
                 "source": "shark_snapshot",
-                "symbol": "",
+                "symbol": (symbol or _infer_symbol_from_text(raw)).upper(),
                 "direction": "LONG" if direction.lower() == "bull" else "SHORT",
                 "confidence": "MEDIUM",
                 "pattern": pattern.upper(),
@@ -1987,6 +2025,21 @@ def api_signals():
             "tp2": None,
             "raw": "",
         }]
+
+    for item in deduped:
+        symbol = (item.get("symbol") or "").upper()
+        if not symbol:
+            symbol = _infer_symbol_from_text(item.get("raw") or "")
+            item["symbol"] = symbol
+        item["asset_name"] = ASSET_NAME_MAP.get(symbol, symbol or "Unknown Asset")
+
+    def _signal_sort_key(item):
+        ts = _parse_iso_timestamp(item.get("time"))
+        if ts:
+            return ts
+        return datetime.min
+
+    deduped.sort(key=_signal_sort_key, reverse=True)
 
     newest = max([t for t in (snapshot_time, scanner_time, snapshot_mtime, scanner_mtime) if t] or [datetime.now()])
     age_seconds = max(0, int((datetime.now() - newest.replace(tzinfo=None)).total_seconds()))
