@@ -1756,6 +1756,43 @@ def api_usage_channels():
 
 
 @app.route('/api/usage/reports')
+def api_usage_codex():
+    """Pull Codex/GPT usage from local Codex CLI SQLite DB."""
+    import sqlite3 as _sqlite3
+    db_path = os.path.expanduser("~/.codex/state_5.sqlite")
+    if not os.path.exists(db_path):
+        return jsonify({"error": "Codex DB not found"}), 404
+    try:
+        conn = _sqlite3.connect(db_path)
+        total = conn.execute("SELECT SUM(tokens_used), COUNT(*) FROM threads").fetchone()
+        cutoff_24h = int(time.time()) - 86400
+        cutoff_7d = int(time.time()) - 604800
+        recent = conn.execute("SELECT SUM(tokens_used), COUNT(*) FROM threads WHERE updated_at > ?", (cutoff_24h,)).fetchone()
+        weekly = conn.execute("SELECT SUM(tokens_used), COUNT(*) FROM threads WHERE updated_at > ?", (cutoff_7d,)).fetchone()
+        # Recent sessions detail
+        sessions = conn.execute(
+            "SELECT title, tokens_used, model_provider, updated_at FROM threads ORDER BY updated_at DESC LIMIT 5"
+        ).fetchall()
+        conn.close()
+        return jsonify({
+            "total_tokens": total[0] or 0,
+            "total_sessions": total[1] or 0,
+            "last_24h_tokens": recent[0] or 0,
+            "last_24h_sessions": recent[1] or 0,
+            "last_7d_tokens": weekly[0] or 0,
+            "last_7d_sessions": weekly[1] or 0,
+            "recent_sessions": [{"title": s[0], "tokens": s[1], "provider": s[2], "updated_at": s[3]} for s in sessions],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/usage/codex')
+def _api_usage_codex():
+    return api_usage_codex()
+
+
+@app.route('/api/usage/reports')
 def api_usage_reports():
     try:
         if not os.path.exists(SENTINEL_REVIEWS_FILE):

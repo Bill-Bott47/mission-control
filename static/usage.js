@@ -199,13 +199,51 @@ const renderReports = (payload) => {
   }
 };
 
+const renderCodex = (data) => {
+  const el = document.getElementById('codex-body');
+  if (!el) return;
+  if (!data || data.error) {
+    el.textContent = data?.error || 'Codex data unavailable';
+    return;
+  }
+  const fmt = (n) => n ? n.toLocaleString() : '0';
+  el.innerHTML = `
+    <div class="codex-stats">
+      <div class="codex-stat">
+        <div class="codex-stat-value">${fmt(data.total_tokens)}</div>
+        <div class="codex-stat-label">Total tokens (all time)</div>
+      </div>
+      <div class="codex-stat">
+        <div class="codex-stat-value">${fmt(data.last_24h_tokens)}</div>
+        <div class="codex-stat-label">Last 24h (${data.last_24h_sessions} sessions)</div>
+      </div>
+      <div class="codex-stat">
+        <div class="codex-stat-value">${fmt(data.last_7d_tokens)}</div>
+        <div class="codex-stat-label">Last 7 days (${data.last_7d_sessions} sessions)</div>
+      </div>
+    </div>
+    ${data.recent_sessions ? `
+      <div class="codex-recent">
+        <div class="provider-meta" style="margin-bottom:8px;">Recent sessions:</div>
+        ${data.recent_sessions.map(s => `
+          <div class="codex-session">
+            <span class="codex-session-title">${s.title || 'Untitled'}</span>
+            <span class="codex-session-tokens">${fmt(s.tokens)} tok</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+  `;
+};
+
 const loadUsage = async () => {
   try {
-    const [providerRes, minimaxRes, channelRes, reportRes] = await Promise.all([
+    const [providerRes, minimaxRes, channelRes, reportRes, codexRes] = await Promise.all([
       fetch('/api/usage/providers'),
       fetch('/api/usage/minimax'),
       fetch('/api/usage/channels'),
-      fetch('/api/usage/reports')
+      fetch('/api/usage/reports'),
+      fetch('/api/usage/codex')
     ]);
 
     const providers = await providerRes.json();
@@ -214,6 +252,9 @@ const loadUsage = async () => {
 
     const minimax = await minimaxRes.json();
     renderMinimax(minimax);
+
+    const codex = await codexRes.json();
+    renderCodex(codex);
 
     const channels = await channelRes.json();
     renderChannels(channels.channels || channels);
