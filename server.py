@@ -31,6 +31,33 @@ MESSAGE_CENTER_DB = os.path.join(os.path.dirname(__file__), 'data', 'mission-con
 LOGS_DIR = "/Users/bill/.openclaw/workspace/logs"
 MESSAGE_TIMELINE_FILE_PATTERNS = ("*.jsonl", "*.log", "*.out", "*.err")
 TASK_TRACKER_FILE = "/Users/bill/.openclaw/workspace/TASK_TRACKER.md"
+SENTINEL_STATE_FILE = "/Users/bill/.openclaw/workspace/ops/sentinel-state.json"
+SENTINEL_REVIEWS_FILE = "/Users/bill/.openclaw/workspace/audits/sentinel-reviews.md"
+
+DISCORD_CHANNEL_MAP = {
+    "1475879552633802966": "#general",
+    "1475882688559845541": "#inbox",
+    "1475959678000435232": "#notifications",
+    "1475959689186381879": "#ideas",
+    "1475882685237952633": "#war-room",
+    "1475959677081616426": "#command-center",
+    "1476605451536699413": "#ops-errors",
+    "1475882689876852918": "#infrastructure",
+    "1475959678721593466": "#phoenix-strategy",
+    "1475959681464664108": "#phoenix-ops",
+    "1475882687754670153": "#research-center",
+    "1476382717154431190": "#competitive-intel",
+    "1475882686840311982": "#trading-floor",
+    "1475959687861108907": "#trading-systems",
+    "1475882685573365953": "#content-lab",
+    "1476382718240624670": "#trending-content",
+    "1476382719045800038": "#content-research",
+    "1476382719905759453": "#scripts",
+    "1476382720950140950": "#visuals",
+    "1477754510863630548": "#ventures",
+    "1477754523643805971": "#agent-lab",
+    "1478038599181275177": "#bill-direct",
+}
 
 VALID_MESSAGE_SOURCES = {'agent', 'job'}
 VALID_MESSAGE_LEVELS = {'info', 'warn', 'error'}
@@ -1046,6 +1073,168 @@ def _format_relative_time(timestamp_epoch):
     return f"{days}d ago"
 
 
+def _read_json_file(path):
+    try:
+        if not os.path.exists(path):
+            return None
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except Exception:
+        return None
+
+
+def _estimate_calls_per_day(schedule):
+    if not schedule:
+        return 0
+    kind = schedule.get("kind") if isinstance(schedule, dict) else None
+    if kind == "every":
+        every_ms = schedule.get("everyMs", 0) or 0
+        if every_ms <= 0:
+            return 0
+        return round((24 * 60 * 60 * 1000) / every_ms, 2)
+
+    expr = schedule.get("expr") if isinstance(schedule, dict) else None
+    if not expr:
+        return 0
+    expr = expr.strip()
+    if expr.startswith("@"):
+        tag = expr.lower()
+        return {
+            "@hourly": 24,
+            "@daily": 1,
+            "@weekly": round(1 / 7, 3),
+            "@monthly": round(1 / 30, 3),
+        }.get(tag, 0)
+
+    parts = expr.split()
+    if len(parts) < 5:
+        return 0
+    minute, hour, dom, month, dow = parts[:5]
+
+    def _count(field, max_value):
+        if field == "*":
+            return max_value
+        if field.startswith("*/"):
+            try:
+                step = int(field.split("/")[1])
+                return max(1, int(max_value / step))
+            except (ValueError, ZeroDivisionError):
+                return 1
+        if "," in field:
+            return len([v for v in field.split(",") if v.strip()])
+        return 1
+
+    minute_count = _count(minute, 60)
+    hour_count = _count(hour, 24)
+    day_factor = 1
+    if dom != "*" and dow == "*":
+        day_factor = 1 / 30
+    elif dow != "*" and dom == "*":
+        day_factor = 1 / 7
+    elif dow != "*" and dom != "*":
+        day_factor = 1 / 30
+    month_factor = 1
+    if month != "*":
+        month_factor = 1 / 12
+
+    return round(minute_count * hour_count * day_factor * month_factor, 3)
+
+
+def _extract_channel_from_job(job):
+    delivery = job.get("delivery") or {}
+    payload_delivery = (job.get("payload") or {}).get("delivery") or {}
+    for candidate in (delivery, payload_delivery):
+        if candidate.get("mode") == "none":
+            continue
+        channel = candidate.get("channel")
+        target = candidate.get("to")
+        if channel and target:
+            return channel, str(target)
+
+    session_key = job.get("sessionKey") or ""
+    match = re.search(r"discord:channel:(\d+)", session_key)
+    if match:
+        return "discord", match.group(1)
+    match = re.search(r"telegram:chat:(-?\d+)", session_key)
+    if match:
+        return "telegram", match.group(1)
+
+    return "unknown", "unknown"
+
+
+def _normalize_minimax_usage(payload):
+    if not isinstance(payload, dict):
+        return {"models": [], "raw": payload}
+
+    data = payload.get("data") or payload.get("result") or payload
+    models = []
+
+    def _find_model_list(obj):
+        if isinstance(obj, list):
+            if obj and isinstance(obj[0], dict) and any(k in obj[0] for k in ("model", "modelName", "name")):
+                return obj
+        if isinstance(obj, dict):
+            for key in ("models", "modelList", "model_list", "remains", "items", "plans", "planList"):
+                value = obj.get(key)
+                if value is not None:
+                    found = _find_model_list(value)
+                    if found is not None:
+                        return found
+        return None
+
+    model_list = _find_model_list(data)
+    if model_list:
+        for item in model_list:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("model") or item.get("modelName") or item.get("model_name") or item.get("name")
+            used = item.get("used") or item.get("usedCount") or item.get("used_count") or item.get("usage") or item.get("countUsed")
+            total = item.get("total") or item.get("totalCount") or item.get("limit") or item.get("countTotal")
+            remaining = item.get("remaining") or item.get("remain") or item.get("remainingCount") or item.get("left")
+            if remaining is None and used is not None and total is not None:
+                try:
+                    remaining = max(0, int(total) - int(used))
+                except Exception:
+                    remaining = None
+            models.append({
+                "name": name,
+                "used": used,
+                "total": total,
+                "remaining": remaining,
+            })
+
+    remaining_seconds = None
+    for key in ("windowRemainingSeconds", "remainSeconds", "remain_seconds", "resetAfterSeconds", "window_reset_seconds"):
+        if key in payload:
+            remaining_seconds = payload.get(key)
+            break
+        if isinstance(data, dict) and key in data:
+            remaining_seconds = data.get(key)
+            break
+
+    window_remaining = None
+    if isinstance(remaining_seconds, (int, float)):
+        minutes = int(remaining_seconds // 60)
+        window_remaining = f"{minutes}m remaining"
+
+    return {
+        "models": models,
+        "window_remaining": window_remaining,
+        "window_remaining_seconds": remaining_seconds,
+        "raw": payload,
+    }
+
+
+def _extract_latest_report_sections(content):
+    if not content:
+        return "", ""
+    daily_matches = re.findall(r"(## Daily Report[\s\S]*?)(?=\n## |\Z)", content)
+    monthly_matches = re.findall(r"(## Monthly ROI Report[\s\S]*?)(?=\n## |\Z)", content)
+    daily = daily_matches[-1].strip() if daily_matches else ""
+    monthly = monthly_matches[-1].strip() if monthly_matches else ""
+    return daily, monthly
+
+
 def _apply_team_status(agents):
     timeline = _build_message_timeline(limit=500)
     for agent in agents:
@@ -1140,6 +1329,11 @@ def council_page():
 @app.route('/office')
 def office_page():
     return render_template('office.html')
+
+
+@app.route('/usage')
+def usage_page():
+    return render_template('usage.html')
 
 
 @app.route('/api/status')
@@ -1403,6 +1597,177 @@ def api_cron_jobs_live():
         elif isinstance(payload, list):
             return jsonify(payload)
         return jsonify(payload)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/usage/providers')
+def api_usage_providers():
+    state = _read_json_file(SENTINEL_STATE_FILE) or {}
+    provider_health = state.get("providerHealth", {})
+    pai_status = state.get("paiStatus", {})
+
+    def get_status(key, fallback="unknown"):
+        return (provider_health.get(key, {}) or {}).get("status", fallback)
+
+    providers = [
+        {
+            "key": "claude",
+            "name": "Claude",
+            "cost": "$100/mo",
+            "usage": "Jonathan Telegram only",
+            "status": get_status("claude", "unknown"),
+            "note": (provider_health.get("claude", {}) or {}).get("note", ""),
+        },
+        {
+            "key": "openai",
+            "name": "ChatGPT / Codex",
+            "cost": "$20/mo",
+            "usage": "Coding tasks",
+            "status": get_status("openai", "unknown"),
+            "note": (provider_health.get("openai", {}) or {}).get("note", ""),
+        },
+        {
+            "key": "minimax",
+            "name": "MiniMax M2.5",
+            "cost": "$20/mo",
+            "usage": "Content channels",
+            "status": get_status("minimax", "unknown"),
+            "note": (provider_health.get("minimax", {}) or {}).get("note", ""),
+        },
+        {
+            "key": "deepseek",
+            "name": "DeepSeek",
+            "cost": "$0 credits",
+            "usage": "Ops/analysis (disabled)",
+            "status": "dead",
+            "note": (provider_health.get("deepseek", {}) or {}).get("note", "OUT OF CREDITS"),
+        },
+        {
+            "key": "xai",
+            "name": "xAI Grok",
+            "cost": "Pay-per-use",
+            "usage": "Limited / market tasks",
+            "status": get_status("xai", "unknown"),
+            "note": (provider_health.get("xai", {}) or {}).get("note", ""),
+        },
+        {
+            "key": "ollama",
+            "name": "pai Ollama",
+            "cost": "Free local",
+            "usage": "Housekeeping + SENTINEL",
+            "status": "ok" if pai_status.get("online") else get_status("ollama", "unknown"),
+            "note": (provider_health.get("ollama", {}) or {}).get("note", ""),
+        },
+    ]
+
+    return jsonify({
+        "providers": providers,
+        "updated_at": state.get("lastWatchAt"),
+    })
+
+
+@app.route('/api/usage/minimax')
+def api_usage_minimax():
+    url = "https://www.minimax.io/v1/api/openplatform/coding_plan/remains"
+    headers = {
+        "Authorization": "Bearer sk-cp-phOTlbIwOqTPdFPSd-PgVwGCBLscqx4HJEayW0b_J2g_snpcnApkzcMJLo8gRYo_ykF1_gNw5EpIOFywa19jtkt2UmR4SYm91QZFsd9qy7SQcrWNfHdWbfg"
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=12)
+        if resp.status_code != 200:
+            return jsonify({"error": f"MiniMax API error {resp.status_code}", "details": resp.text[:200]}), 502
+        payload = resp.json()
+        return jsonify(_normalize_minimax_usage(payload))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/usage/channels')
+def api_usage_channels():
+    try:
+        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"], capture_output=True, text=True, timeout=15)
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr.strip() or "cron list failed"}), 500
+        payload = json.loads(result.stdout)
+        jobs = []
+        if isinstance(payload, dict) and "jobs" in payload:
+            inner = payload["jobs"]
+            if isinstance(inner, dict) and "jobs" in inner:
+                jobs = inner["jobs"]
+            elif isinstance(inner, list):
+                jobs = inner
+        elif isinstance(payload, list):
+            jobs = payload
+
+        channel_map = {}
+        for job in jobs:
+            channel_type, channel_id = _extract_channel_from_job(job)
+            if channel_type == "unknown":
+                continue
+            schedule = job.get("schedule") or {}
+            calls_per_day = _estimate_calls_per_day(schedule)
+            payload = job.get("payload") or {}
+            model = payload.get("modelOverride") or payload.get("model") or "unknown"
+
+            if schedule.get("kind") == "every":
+                every_ms = schedule.get("everyMs", 0) or 0
+                every_minutes = round(every_ms / 60000) if every_ms else 0
+                frequency = f"every {every_minutes}m" if every_minutes >= 1 else f"every {round(every_ms/1000)}s"
+            elif schedule.get("kind") == "cron":
+                frequency = schedule.get("expr", "unknown")
+            else:
+                frequency = "unknown"
+
+            last_status = (job.get("state") or {}).get("lastRunStatus") or "unknown"
+            channel_label = channel_id
+            if channel_type == "discord":
+                channel_label = DISCORD_CHANNEL_MAP.get(channel_id, f"discord:{channel_id}")
+            elif channel_type == "telegram":
+                channel_label = f"telegram:{channel_id}"
+
+            if channel_label not in channel_map:
+                channel_map[channel_label] = {
+                    "channel_name": channel_label,
+                    "channel_id": channel_id,
+                    "channel_type": channel_type,
+                    "total_calls_per_day": 0,
+                    "jobs": [],
+                }
+
+            channel_map[channel_label]["total_calls_per_day"] += calls_per_day
+            channel_map[channel_label]["jobs"].append({
+                "name": job.get("name") or job.get("id"),
+                "model": model,
+                "frequency": frequency,
+                "calls_per_day": calls_per_day,
+                "last_status": last_status,
+            })
+
+        channels = sorted(channel_map.values(), key=lambda item: item["total_calls_per_day"], reverse=True)
+        for channel in channels:
+            channel["total_calls_per_day"] = round(channel["total_calls_per_day"], 2)
+        return jsonify({
+            "channels": channels,
+            "updated_at": datetime.now().isoformat(),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/usage/reports')
+def api_usage_reports():
+    try:
+        if not os.path.exists(SENTINEL_REVIEWS_FILE):
+            return jsonify({"error": "sentinel-reviews.md not found"}), 404
+        content = Path(SENTINEL_REVIEWS_FILE).read_text(encoding="utf-8")
+        daily, monthly = _extract_latest_report_sections(content)
+        updated_at = datetime.fromtimestamp(Path(SENTINEL_REVIEWS_FILE).stat().st_mtime).isoformat()
+        return jsonify({
+            "daily": daily,
+            "monthly": monthly,
+            "updated_at": updated_at,
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

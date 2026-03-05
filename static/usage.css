@@ -1,0 +1,238 @@
+.usage-top {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.provider-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 150px;
+}
+
+.provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.provider-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.provider-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.provider-note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.provider-cost {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.minimax-card {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-primary);
+}
+
+.minimax-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.minimax-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.minimax-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.progress-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.usage-section {
+  margin-bottom: 16px;
+}
+
+.channel-table {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.channel-card-item {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.channel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.channel-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.channel-usage {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.channel-jobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.channel-job {
+  background: rgba(0,0,0,0.3);
+  border-radius: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.channel-job strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-secondary);
+}
+
+.status-tag.ok { color: var(--success); background: rgba(34, 197, 94, 0.12); }
+.status-tag.error { color: var(--danger); background: rgba(220, 38, 38, 0.12); }
+.status-tag.warn { color: var(--warning); background: rgba(245, 158, 11, 0.12); }
+
+.cost-table {
+  display: grid;
+  gap: 8px;
+}
+
+.cost-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 2fr 0.8fr;
+  gap: 12px;
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.cost-row.header {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.report-block {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.report-block h3 {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.markdown {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.markdown h2, .markdown h3, .markdown h4 {
+  color: var(--text-primary);
+  margin: 10px 0 6px;
+}
+
+.markdown ul {
+  padding-left: 18px;
+  margin: 6px 0;
+}
+
+.markdown li {
+  margin-bottom: 4px;
+}
+
+@media (max-width: 1100px) {
+  .usage-top {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Usage — Mission Control{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='usage.css') }}">
+{% endblock %}
+{% block content %}
+<header class="page-header">
+    <h1>Usage</h1>
+    <span class="subtle">Provider health, live usage, and channel burn</span>
+</header>
+
+<section class="usage-top">
+    <div class="provider-grid" id="provider-grid">
+        <div class="card">Loading providers...</div>
+    </div>
+    <div class="card minimax-card" id="minimax-card">
+        <div class="card-header">
+            <h2>MiniMax Live Usage</h2>
+            <span class="card-meta" id="minimax-meta">Checking live quota</span>
+        </div>
+        <div id="minimax-body" class="minimax-body">Loading...</div>
+    </div>
+</section>
+
+<section class="usage-section">
+    <div class="card channel-card">
+        <div class="card-header">
+            <h2>Usage by Channel</h2>
+            <span class="card-meta" id="channel-meta">Top burn channels</span>
+        </div>
+        <div id="channel-table" class="channel-table">Loading...</div>
+    </div>
+</section>
+
+<section class="usage-section">
+    <div class="card cost-card">
+        <div class="card-header">
+            <h2>Cost Estimate</h2>
+            <span class="card-meta">Monthly allocation overview</span>
+        </div>
+        <div id="cost-table" class="cost-table">Loading...</div>
+    </div>
+</section>
+
+<section class="usage-section">
+    <div class="card report-card">
+        <div class="card-header">
+            <h2>SENTINEL Reports</h2>
+            <span class="card-meta" id="report-meta">Latest daily + monthly ROI</span>
+        </div>
+        <div class="report-grid">
+            <div class="report-block">
+                <h3>Latest Daily</h3>
+                <div id="report-daily" class="markdown">Loading...</div>
+            </div>
+            <div class="report-block">
+                <h3>Latest Monthly ROI</h3>
+                <div id="report-monthly" class="markdown">Loading...</div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='usage.js') }}"></script>
+{% endblock %}
