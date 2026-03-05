@@ -163,9 +163,16 @@ body {
 }
 .ticker-track {
   display: flex;
-  gap: 32px;
-  animation: ticker-scroll 40s linear infinite;
+  gap: 0;
+  animation: ticker-scroll 90s linear infinite;
   width: max-content;
+}
+
+.ticker-segment {
+  display: flex;
+  gap: 24px;
+  padding-right: 24px;
+  flex-shrink: 0;
 }
 .ticker-item {
   font-size: 13px;
@@ -177,6 +184,22 @@ body {
 }
 .ticker-item.long { color: #22C55E; }
 .ticker-item.short { color: #DC2626; }
+
+.ticker-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.ticker-line1 {
+  font-size: 12px;
+}
+
+.ticker-line2 {
+  font-size: 11px;
+  color: var(--text-muted);
+}
 
 @keyframes ticker-scroll {
   0% { transform: translateX(0); }

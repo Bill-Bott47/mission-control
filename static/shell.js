@@ -24,25 +24,35 @@ class Shell {
                 track.innerHTML = '<div class="ticker-item">No signals</div>';
                 return;
             }
-            // Double the items for seamless scroll loop
-            const doubled = items.concat(items).concat(items);
-            const html = doubled.map(item => {
+            const itemHtml = items.map(item => {
                 const dir = (item.direction || '').toLowerCase();
-                const time = item.time || '';
-                const entry = item.entry ? `Entry ${item.entry}` : '';
-                const sl = item.sl ? `SL ${item.sl}` : '';
-                const tp1 = item.tp1 ? `TP1 ${item.tp1}` : '';
-                const tp2 = item.tp2 ? `TP2 ${item.tp2}` : '';
-                const conf = item.confidence ? `${item.confidence}` : '';
-                const pattern = item.pattern ? `${item.pattern}` : '';
-                // Format: Time · ASSET DIRECTION · Pattern Confidence · Entry · SL · TP1 · TP2
-                const parts = [time, `${item.symbol} ${item.direction || ''}`, pattern, conf, entry, sl, tp1, tp2].filter(Boolean);
-                return `<a href="/signals" class="ticker-item ${dir}">${parts.join(' · ')}</a>`;
+                const confidence = item.confidence ? String(item.confidence).toUpperCase() : 'MED';
+                const asset = this.escapeHtml(item.asset_name || item.symbol || item.asset || 'Unknown');
+                const direction = this.escapeHtml((item.direction || '—').toUpperCase());
+                const entry = item.entry ? `Entry ${this.escapeHtml(item.entry)}` : 'Entry —';
+                const tp = item.tp1 ? `TP ${this.escapeHtml(item.tp1)}` : 'TP —';
+                const sl = item.sl ? `SL ${this.escapeHtml(item.sl)}` : 'SL —';
+                return `
+                    <a href="/signals" class="ticker-item ticker-rich ${dir}">
+                        <span class="ticker-line1">${confidence} · ${asset} ${direction}</span>
+                        <span class="ticker-line2">${entry} · ${tp} · ${sl}</span>
+                    </a>
+                `;
             }).join('');
-            track.innerHTML = html;
+            track.innerHTML = `
+                <div class="ticker-segment">${itemHtml}</div>
+                <div class="ticker-segment" aria-hidden="true">${itemHtml}</div>
+            `;
         } catch (e) {
             console.warn('Ticker fetch failed:', e);
         }
+    }
+
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     async updateApprovalsBadge() {

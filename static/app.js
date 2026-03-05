@@ -45,6 +45,7 @@ class Dashboard {
 
     renderSignals(items) {
         const track = document.getElementById('ticker-track') || document.getElementById('global-ticker-track');
+        if (!track) return;
         if (!items || items.length === 0) {
             track.innerHTML = '<div class="ticker-item">No signals available</div>';
             return;
@@ -52,18 +53,26 @@ class Dashboard {
 
         const html = items.map(item => {
             const dirClass = item.direction ? item.direction.toLowerCase() : '';
-            const price = item.price ? ` ${item.price}` : '';
-            const funding = item.funding ? ` (${item.funding})` : '';
-            const confidence = item.confidence ? ` ${item.confidence}` : '';
-            return `<a href="/signals" class="ticker-item ${dirClass}">${item.symbol}${price}${funding}${confidence}</a>`;
+            const confidence = item.confidence ? String(item.confidence).toUpperCase() : 'MED';
+            const asset = this.escapeHtml(item.asset_name || item.symbol || item.asset || 'Unknown');
+            const direction = this.escapeHtml((item.direction || '—').toUpperCase());
+            const entry = item.entry ? `Entry ${this.escapeHtml(item.entry)}` : 'Entry —';
+            const tp = item.tp1 ? `TP ${this.escapeHtml(item.tp1)}` : 'TP —';
+            const sl = item.sl ? `SL ${this.escapeHtml(item.sl)}` : 'SL —';
+            return `
+                <a href="/signals" class="ticker-item ticker-rich ${dirClass}">
+                    <span class="ticker-line1">${confidence} · ${asset} ${direction}</span>
+                    <span class="ticker-line2">${entry} · ${tp} · ${sl}</span>
+                </a>
+            `;
         }).join('');
 
         track.innerHTML = html;
     }
 
     renderSignalsError() {
-        const track = document.getElementById('ticker-track');
-        track.innerHTML = '<div class="ticker-item">Signal data unavailable</div>';
+        const track = document.getElementById('ticker-track') || document.getElementById('global-ticker-track');
+        if (track) track.innerHTML = '<div class="ticker-item">Signal data unavailable</div>';
     }
 
     async loadCrew() {
@@ -153,6 +162,18 @@ class Dashboard {
         const cronErr = data.cron_errors || 0;
         meta.textContent = `${cronOk} cron ok, ${cronErr} errors`;
         
+        const cronErrors = (data.cron_error_jobs || []).map((job, idx) => `
+            <button class="cron-error-link" data-idx="${idx}">
+                ${this.escapeHtml(job.name || job.id || `Error ${idx + 1}`)}
+            </button>
+        `).join('');
+        const pai = data.pai_details || {};
+        const util = pai.utilization_percent !== null && pai.utilization_percent !== undefined
+            ? `${Number(pai.utilization_percent).toFixed(1)}% util`
+            : 'util n/a';
+        const vram = pai.vram_total_gb ? `${pai.vram_used_gb || 0}/${pai.vram_total_gb}GB VRAM` : 'VRAM n/a';
+        const ram = pai.memory_total_gb ? `${pai.memory_used_gb || 0}/${pai.memory_total_gb}GB RAM` : 'RAM n/a';
+
         const html = `
             <div class="health-grid">
                 <div class="health-row">
@@ -168,13 +189,34 @@ class Dashboard {
                     <span class="status-pill ${cronErr > 0 ? 'warn' : 'up'}">${cronOk} ok / ${cronErr} err</span>
                 </div>
                 <div class="health-row">
-                    <span>Uptime</span>
-                    <span class="status-pill">${data.uptime || '—'}</span>
+                    <span>Uptime Since Restart</span>
+                    <span class="status-pill">${data.uptime_since_restart || data.uptime || '—'}</span>
                 </div>
+            </div>
+            <div class="health-notes">
+                <div class="crew-meta">Gateway detail: ${this.escapeHtml(data.gateway_details || '—')}</div>
+                <div class="crew-meta">Last restart reason: ${this.escapeHtml(data.last_restart_reason || 'Unknown')}</div>
+                <div class="crew-meta">pai: ${util} · ${vram} · ${ram}</div>
+                ${cronErrors ? `<div class="cron-errors"><span class="crew-meta">Cron errors:</span>${cronErrors}</div>` : ''}
             </div>
         `;
         
         container.innerHTML = html;
+        this._cronErrorJobs = data.cron_error_jobs || [];
+        container.querySelectorAll('.cron-error-link').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = Number(btn.dataset.idx);
+                const job = this._cronErrorJobs[idx];
+                if (!job) return;
+                const detail = [
+                    `Job: ${job.name || job.id || 'unknown'}`,
+                    `Agent: ${job.agent || 'unknown'}`,
+                    `Last Run: ${job.last_run || 'unknown'}`,
+                    `Error: ${job.error || 'No details'}`
+                ].join('\n');
+                window.alert(detail);
+            });
+        });
     }
 
     renderSystemHealthError() {
@@ -241,19 +283,19 @@ class Dashboard {
         
         const html = `
             <div class="task-summary">
-                <div class="task-chip">
+                <div class="task-chip task-inbox">
                     <strong>${counts['INBOX'] || 0}</strong>
                     <span>Inbox</span>
                 </div>
-                <div class="task-chip">
+                <div class="task-chip task-active">
                     <strong>${counts['IN PROGRESS'] || 0}</strong>
                     <span>Active</span>
                 </div>
-                <div class="task-chip">
+                <div class="task-chip task-review">
                     <strong>${counts['REVIEW'] || 0}</strong>
                     <span>Review</span>
                 </div>
-                <div class="task-chip">
+                <div class="task-chip task-done">
                     <strong>${counts['DONE'] || 0}</strong>
                     <span>Done</span>
                 </div>

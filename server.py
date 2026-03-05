@@ -95,6 +95,53 @@ _phoenix_cache = {
     'ttl': 60  # 60 seconds
 }
 
+OPENCLAW_BIN = os.environ.get("OPENCLAW_BIN") or shutil.which("openclaw") or "/opt/homebrew/bin/openclaw"
+
+
+def _run_openclaw(args, timeout=15):
+    """Run openclaw command with a resilient binary path."""
+    try:
+        return subprocess.run(
+            [OPENCLAW_BIN, *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except Exception:
+        return None
+
+
+def _dig_value(obj, path):
+    current = obj
+    for part in path.split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return None
+    return current
+
+
+def _first_number(payload, paths):
+    for path in paths:
+        value = _dig_value(payload, path)
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.strip().replace("%", "")
+            try:
+                return float(cleaned)
+            except ValueError:
+                continue
+    return None
+
+
+def _first_text(payload, paths):
+    for path in paths:
+        value = _dig_value(payload, path)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
 def _backup_db_before_migration(db_path):
     """Create a .bak copy of sqlite db before migrations."""
     if os.path.exists(db_path):
@@ -1087,15 +1134,14 @@ def _extract_cron_jobs(payload):
 
 
 def _load_cron_jobs_live():
+    result = _run_openclaw(["cron", "list", "--json"], timeout=15)
+    if not result or result.returncode != 0:
+        return []
     try:
-        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"],
-                                capture_output=True, text=True, timeout=15)
-        if result.returncode != 0:
-            return []
         payload = json.loads(result.stdout)
-        return _extract_cron_jobs(payload)
     except Exception:
         return []
+    return _extract_cron_jobs(payload)
 
 
 def _read_json_file(path):
@@ -1524,50 +1570,59 @@ def api_crew_status():
     erroring = 0
     idle = 0
     agent_statuses = []
-    try:
-        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"],
-                                capture_output=True, text=True, timeout=15)
-        if result.returncode == 0:
-            payload = json.loads(result.stdout)
-            jobs = payload.get("jobs", {}).get("jobs", []) if isinstance(payload.get("jobs"), dict) else payload.get("jobs", [])
-            if isinstance(jobs, dict):
-                jobs = jobs.get("jobs", [])
-            # Aggregate by agent
-            agent_map = {}
-            for job in jobs:
-                agent = job.get("agentId", "main")
-                state = job.get("state", {})
-                status = state.get("lastRunStatus", "unknown")
-                last_run_at = state.get("lastRunAtMs") or 0
-                if agent not in agent_map:
-                    agent_map[agent] = {
-                        "ok": 0,
-                        "error": 0,
-                        "total": 0,
-                        "last_run_status": "unknown",
-                        "last_run_at": 0
-                    }
-                agent_map[agent]["total"] += 1
-                if status == "ok":
-                    agent_map[agent]["ok"] += 1
-                elif status == "error":
-                    agent_map[agent]["error"] += 1
-                if last_run_at and last_run_at > agent_map[agent]["last_run_at"]:
-                    agent_map[agent]["last_run_at"] = last_run_at
-                    agent_map[agent]["last_run_status"] = status
-            for agent, counts in agent_map.items():
-                payload = {"agent": agent, "status": "idle", **counts}
-                if counts["error"] > 0:
-                    erroring += 1
-                    payload["status"] = "erroring"
-                elif counts["ok"] > 0:
-                    active += 1
-                    payload["status"] = "active"
-                else:
-                    idle += 1
-                agent_statuses.append(payload)
-    except Exception:
-        pass
+    jobs = _load_cron_jobs_live()
+    if jobs:
+        agent_map = {}
+        for job in jobs:
+            agent = (job.get("agentId") or job.get("agent") or "main").lower()
+            state = job.get("state", {})
+            status = state.get("lastRunStatus", "unknown")
+            last_run_at = state.get("lastRunAtMs") or 0
+            if agent not in agent_map:
+                agent_map[agent] = {
+                    "ok": 0,
+                    "error": 0,
+                    "total": 0,
+                    "last_run_status": "unknown",
+                    "last_run_at": 0
+                }
+            agent_map[agent]["total"] += 1
+            if status == "ok":
+                agent_map[agent]["ok"] += 1
+            elif status == "error":
+                agent_map[agent]["error"] += 1
+            if last_run_at and last_run_at > agent_map[agent]["last_run_at"]:
+                agent_map[agent]["last_run_at"] = last_run_at
+                agent_map[agent]["last_run_status"] = status
+        for agent, counts in agent_map.items():
+            payload = {"agent": agent, "status": "idle", **counts}
+            if counts["error"] > 0:
+                erroring += 1
+                payload["status"] = "erroring"
+            elif counts["ok"] > 0:
+                active += 1
+                payload["status"] = "active"
+            else:
+                idle += 1
+            agent_statuses.append(payload)
+    else:
+        roster = _apply_team_status(_load_team_roster())
+        for agent in roster:
+            state = agent.get("status")
+            mapped = "active" if state == "online" else "idle"
+            if mapped == "active":
+                active += 1
+            else:
+                idle += 1
+            agent_statuses.append({
+                "agent": agent.get("slug") or agent.get("name"),
+                "status": mapped,
+                "ok": 0,
+                "error": 0,
+                "total": 0,
+                "last_run_status": state or "unknown",
+                "last_run_at": 0,
+            })
 
     return jsonify({
         "agents": agent_statuses,
@@ -1823,8 +1878,8 @@ def _build_recent_activity_events(limit=20):
                     continue
                 events.append({
                     "timestamp": ts_dt.isoformat(),
-                    "title": f"Git commit {sha[:7]}",
-                    "description": msg,
+                    "title": msg,
+                    "description": f"Commit {sha[:7]}",
                     "source": "git",
                 })
     except Exception:
@@ -1980,75 +2035,137 @@ def api_system_health():
         error_count = 0
 
     gateway_up = False
-    uptime = "unknown"
+    gateway_details = "unknown"
+    uptime_since_restart = "unknown"
+    last_restart_reason = "Unknown"
     cron_ok = 0
     cron_err = 0
-    try:
-        result = subprocess.run(["/opt/homebrew/bin/openclaw", "gateway", "status"],
-                                capture_output=True, text=True, timeout=10)
-        if result.returncode == 0 and "running" in result.stdout.lower():
-            gateway_up = True
-            for line in result.stdout.splitlines():
-                if "uptime" in line.lower():
-                    uptime = line.split(":", 1)[-1].strip() if ":" in line else line.strip()
-    except Exception:
-        pass
+    cron_error_jobs = []
+    result = _run_openclaw(["gateway", "status"], timeout=10)
+    if result and result.returncode == 0:
+        output = (result.stdout or "").strip()
+        lowered = output.lower()
+        gateway_up = any(term in lowered for term in ("running", "online", "up"))
+        gateway_details = output.splitlines()[0] if output else "reachable"
+        for line in output.splitlines():
+            line_lower = line.lower()
+            if "uptime" in line_lower:
+                uptime_since_restart = line.split(":", 1)[-1].strip() if ":" in line else line.strip()
+            if "restart" in line_lower and ("reason" in line_lower or ":" in line):
+                last_restart_reason = line.split(":", 1)[-1].strip() if ":" in line else line.strip()
 
     # Count cron job health from the last run
-    try:
-        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"],
-                                capture_output=True, text=True, timeout=15)
-        if result.returncode == 0:
-            payload = json.loads(result.stdout)
-            jobs = payload.get("jobs", {}).get("jobs", []) if isinstance(payload.get("jobs"), dict) else payload.get("jobs", [])
-            if isinstance(jobs, dict):
-                jobs = jobs.get("jobs", [])
-            for job in jobs:
-                st = job.get("state", {}).get("lastRunStatus", "")
-                if st == "ok":
-                    cron_ok += 1
-                elif st == "error":
-                    cron_err += 1
-    except Exception:
-        pass
+    jobs = _load_cron_jobs_live()
+    if jobs and not gateway_up:
+        gateway_up = True
+        gateway_details = "cron service reachable"
+    for job in jobs:
+        state = job.get("state", {})
+        st = state.get("lastRunStatus", "")
+        if st == "ok":
+            cron_ok += 1
+        elif st == "error":
+            cron_err += 1
+            cron_error_jobs.append({
+                "id": job.get("id"),
+                "name": job.get("name") or job.get("id"),
+                "agent": job.get("agentId") or job.get("agent") or "main",
+                "last_run": state.get("lastRun"),
+                "last_run_at_ms": state.get("lastRunAtMs"),
+                "error": (
+                    state.get("lastRunError")
+                    or state.get("error")
+                    or state.get("lastError")
+                    or state.get("errorMessage")
+                    or "No error message captured"
+                ),
+            })
 
     # Check pai status
     pai_up = False
+    pai_details = {
+        "working": [],
+        "not_working": [],
+        "utilization_percent": None,
+        "memory_used_gb": None,
+        "memory_total_gb": None,
+        "vram_used_gb": None,
+        "vram_total_gb": None,
+        "raw_status": None,
+    }
     try:
         resp = requests.get("http://192.168.1.189:8500/summary", timeout=5)
         pai_up = resp.status_code == 200
+        if pai_up:
+            pai_details["working"].append("summary endpoint responding")
+            payload = resp.json() if "application/json" in (resp.headers.get("content-type", "") or "").lower() else {}
+            if isinstance(payload, dict):
+                pai_details["raw_status"] = _first_text(payload, ["status", "state", "health.status"])
+                pai_details["utilization_percent"] = _first_number(payload, [
+                    "utilization_percent", "utilization", "gpu_utilization_percent", "gpu.utilization_percent",
+                    "gpu.utilization", "gpu.percent", "summary.gpu.utilization_percent"
+                ])
+                pai_details["memory_used_gb"] = _first_number(payload, ["memory.used_gb", "ram.used_gb", "memory_gb_used"])
+                pai_details["memory_total_gb"] = _first_number(payload, ["memory.total_gb", "ram.total_gb", "memory_gb_total"])
+                pai_details["vram_used_gb"] = _first_number(payload, ["gpu.vram_used_gb", "vram.used_gb", "gpu.memory_used_gb"])
+                pai_details["vram_total_gb"] = _first_number(payload, ["gpu.vram_total_gb", "vram.total_gb", "gpu.memory_total_gb"])
+
+            if pai_details["utilization_percent"] is not None:
+                pai_details["working"].append("GPU telemetry")
+            else:
+                pai_details["not_working"].append("GPU utilization telemetry")
+            if pai_details["vram_total_gb"] is not None or pai_details["vram_used_gb"] is not None:
+                pai_details["working"].append("VRAM telemetry")
+            else:
+                pai_details["not_working"].append("VRAM telemetry")
+            if pai_details["memory_total_gb"] is not None or pai_details["memory_used_gb"] is not None:
+                pai_details["working"].append("RAM telemetry")
+            else:
+                pai_details["not_working"].append("RAM telemetry")
+        else:
+            pai_details["not_working"].append(f"summary endpoint HTTP {resp.status_code}")
     except Exception:
-        pass
+        pai_details["not_working"].append("summary endpoint unreachable")
+
+    if not gateway_up and gateway_details == "unknown":
+        gateway_details = "gateway status command unavailable"
 
     return jsonify({
         "gateway": "up" if gateway_up else "down",
-        "uptime": uptime,
+        "gateway_details": gateway_details,
+        "uptime": uptime_since_restart,
+        "uptime_since_restart": uptime_since_restart,
+        "last_restart_reason": last_restart_reason,
         "cron_ok": cron_ok,
         "cron_errors": cron_err,
+        "cron_error_jobs": cron_error_jobs[:12],
         "pai": "up" if pai_up else "down",
+        "pai_details": pai_details,
         "errors_24h": error_count,
     })
 
 
 @app.route('/api/cron-jobs-live')
 def api_cron_jobs_live():
+    result = _run_openclaw(["cron", "list", "--json"], timeout=15)
+    if not result:
+        return jsonify({"error": "openclaw unavailable"}), 500
+    if result.returncode != 0:
+        return jsonify({"error": result.stderr.strip() or "cron list failed"}), 500
     try:
-        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"], capture_output=True, text=True, timeout=15)
-        if result.returncode != 0:
-            return jsonify({"error": result.stderr.strip() or "cron list failed"}), 500
         payload = json.loads(result.stdout)
-        # Normalize: openclaw cron list returns {jobs: {jobs: [...], total, ...}}
-        if isinstance(payload, dict) and "jobs" in payload:
-            inner = payload["jobs"]
-            if isinstance(inner, dict) and "jobs" in inner:
-                return jsonify(inner["jobs"])
-            elif isinstance(inner, list):
-                return jsonify(inner)
-        elif isinstance(payload, list):
-            return jsonify(payload)
-        return jsonify(payload)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"invalid cron JSON: {e}"}), 500
+    # Normalize: openclaw cron list returns {jobs: {jobs: [...], total, ...}}
+    if isinstance(payload, dict) and "jobs" in payload:
+        inner = payload["jobs"]
+        if isinstance(inner, dict) and "jobs" in inner:
+            return jsonify(inner["jobs"])
+        if isinstance(inner, list):
+            return jsonify(inner)
+    if isinstance(payload, list):
+        return jsonify(payload)
+    return jsonify(payload)
 
 
 @app.route('/api/usage/providers')
