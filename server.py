@@ -2751,6 +2751,7 @@ def api_approvals_update(approval_id):
 
     # Route the decision to the agent via OpenClaw gateway
     result = dict(row)
+    routed_to_discord = False
     try:
         title = result.get("title", "Unknown")
         submitted_by = result.get("submitted_by", "unknown")
@@ -2765,9 +2766,12 @@ def api_approvals_update(approval_id):
              "--channel", "discord", "--target", "1475882688559845541", "--message", msg],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
+        routed_to_discord = True
     except Exception:
         pass  # Don't fail the API if notification fails
 
+    result["routed_to_discord"] = routed_to_discord
+    result["route_channel"] = "#inbox"
     return jsonify(result)
 
 

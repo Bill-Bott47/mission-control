@@ -91,13 +91,18 @@ function showDetail(item) {
   detail.querySelectorAll('button').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const replyText = document.getElementById('reply-text').value;
+      let result = null;
       if (btn.dataset.action === 'approve') {
-        await updateApproval(item.id, 'approved', replyText);
+        result = await updateApproval(item.id, 'approved', replyText);
       } else if (btn.dataset.action === 'reject') {
-        await updateApproval(item.id, 'rejected', replyText);
+        result = await updateApproval(item.id, 'rejected', replyText);
       } else {
-        await updateApproval(item.id, item.status, replyText);
-        showBanner('✅ Reply received — routing to Bill');
+        result = await updateApproval(item.id, item.status, replyText);
+      }
+      if (result?.routed_to_discord) {
+        showBanner('✅ Reply routed to Discord #inbox');
+      } else {
+        showBanner('✅ Reply saved');
       }
       await loadApprovals();
     });
@@ -105,11 +110,13 @@ function showDetail(item) {
 }
 
 async function updateApproval(id, status, replyText) {
-  await fetch(`/api/approvals/${id}`, {
+  const resp = await fetch(`/api/approvals/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, reply_text: replyText })
   });
+  if (!resp.ok) return null;
+  return resp.json();
 }
 
 document.addEventListener('DOMContentLoaded', loadApprovals);

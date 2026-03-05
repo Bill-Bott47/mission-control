@@ -18,3 +18,25 @@
 .council-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
 
 .council-empty { font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.04); padding: 10px; border-radius: 8px; }
+
+.council-box {
+  margin-top: 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  padding: 8px 10px;
+}
+
+.council-box summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.council-body {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}

@@ -20,3 +20,30 @@
 .b5 { background: #6b6b8a; }
 
 .office-label { font-size: 14px; color: var(--text-secondary); }
+
+.pixel-city {
+  animation: float-city 4.5s ease-in-out infinite;
+}
+
+.office-desk {
+  margin: 8px 0 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.desk-item {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.desk-item.lamp { background: #facc15; box-shadow: 0 0 12px rgba(250, 204, 21, 0.45); }
+.desk-item.mug { background: #fb7185; }
+.desk-item.plant { background: #4ade80; }
+
+@keyframes float-city {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+  100% { transform: translateY(0); }
+}
