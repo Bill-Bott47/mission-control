@@ -142,8 +142,8 @@ body {
   border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 20px;
-  overflow: hidden;
   white-space: nowrap;
+  position: relative;
 }
 .ticker-label {
   font-size: 11px;
@@ -152,12 +152,20 @@ body {
   color: #7C3AED;
   margin-right: 16px;
   flex-shrink: 0;
+  z-index: 2;
+  background: rgba(124, 58, 237, 0.08);
+  padding-right: 8px;
+}
+.ticker-overflow {
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 .ticker-track {
   display: flex;
-  gap: 24px;
-  animation: ticker-scroll 30s linear infinite;
-  flex-shrink: 0;
+  gap: 32px;
+  animation: ticker-scroll 40s linear infinite;
+  width: max-content;
 }
 .ticker-item {
   font-size: 13px;

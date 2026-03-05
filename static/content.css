@@ -91,3 +91,55 @@
 .rejected-section h2 { font-size: 15px; margin-bottom: 10px; }
 
 .rejected-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+
+.content-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+}
+
+.content-overlay.hidden { display: none; }
+
+.content-modal {
+  width: min(720px, 92vw);
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.45);
+}
+
+.content-modal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.content-modal .modal-body {
+  display: grid;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.content-modal .modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.content-detail-block {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}

@@ -1073,6 +1073,31 @@ def _format_relative_time(timestamp_epoch):
     return f"{days}d ago"
 
 
+def _extract_cron_jobs(payload):
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        if "jobs" in payload:
+            inner = payload.get("jobs")
+            if isinstance(inner, list):
+                return inner
+            if isinstance(inner, dict):
+                return inner.get("jobs", []) if isinstance(inner.get("jobs"), list) else []
+    return []
+
+
+def _load_cron_jobs_live():
+    try:
+        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"],
+                                capture_output=True, text=True, timeout=15)
+        if result.returncode != 0:
+            return []
+        payload = json.loads(result.stdout)
+        return _extract_cron_jobs(payload)
+    except Exception:
+        return []
+
+
 def _read_json_file(path):
     try:
         if not os.path.exists(path):
@@ -1237,6 +1262,14 @@ def _extract_latest_report_sections(content):
 
 def _apply_team_status(agents):
     timeline = _build_message_timeline(limit=500)
+    cron_jobs = _load_cron_jobs_live()
+    cron_last = {}
+    for job in cron_jobs:
+        agent_id = str(job.get("agentId") or job.get("agent") or "main").lower()
+        last_run_ms = job.get("state", {}).get("lastRunAtMs") or 0
+        if last_run_ms and last_run_ms > cron_last.get(agent_id, 0):
+            cron_last[agent_id] = last_run_ms
+
     for agent in agents:
         last_ts = 0
         for entry in timeline:
@@ -1244,6 +1277,13 @@ def _apply_team_status(agents):
             if agent["name"].lower() in agent_name:
                 last_ts = entry.get("timestamp_epoch", 0)
                 break
+
+        slug = str(agent.get("slug", "")).lower()
+        cron_key = "main" if slug in ("bill", "main") else slug
+        cron_last_ts = cron_last.get(cron_key, 0)
+        if cron_last_ts:
+            last_ts = max(last_ts, cron_last_ts / 1000)
+
         agent["last_active"] = _format_relative_time(last_ts)
         if not last_ts:
             agent["status"] = "offline"
@@ -1365,6 +1405,106 @@ def api_team():
     return jsonify(_apply_team_status(_load_team_roster()))
 
 
+def _normalize_agent_value(value):
+    if not value:
+        return ""
+    val = str(value).strip().lower()
+    replacements = {
+        "content pm": "content-pm",
+        "content_pm": "content-pm",
+        "music biz": "music-biz",
+        "vitruviano pm": "vitruviano-pm",
+    }
+    return replacements.get(val, val)
+
+
+def _agent_match_keys(agent):
+    keys = set()
+    slug = _normalize_agent_value(agent.get("slug", ""))
+    name = _normalize_agent_value(agent.get("name", ""))
+    if slug:
+        keys.add(slug)
+    if name:
+        keys.add(name)
+    if name:
+        keys.add(name.replace(" ", ""))
+    if slug in ("bill", "main"):
+        keys.update({"main", "bill"})
+    return keys
+
+
+def _cron_schedule_label(job):
+    schedule = job.get("schedule") or {}
+    kind = schedule.get("kind") if isinstance(schedule, dict) else None
+    if kind == "every":
+        every_ms = schedule.get("everyMs") or schedule.get("every_ms")
+        if every_ms:
+            return f"Every {int(round(every_ms / 60000))}m"
+    if kind == "cron":
+        return schedule.get("expr") or "—"
+    return schedule.get("expr") if isinstance(schedule, dict) else "—"
+
+
+@app.route('/api/team/<slug>/detail')
+def api_team_detail(slug):
+    agents = _load_team_roster()
+    agent = next((a for a in agents if a.get("slug") == slug), None)
+    if not agent:
+        return jsonify({"error": "not found"}), 404
+
+    agent = _apply_team_status([agent])[0]
+    keys = _agent_match_keys(agent)
+
+    tasks = []
+    init_kanban_db()
+    conn = _kanban_conn()
+    rows = conn.execute("SELECT id, title, column_name, priority, assigned_agent FROM kanban_tasks").fetchall()
+    conn.close()
+    for row in rows:
+        assigned = _normalize_agent_value(row["assigned_agent"])
+        if assigned in keys:
+            tasks.append({
+                "id": row["id"],
+                "title": row["title"],
+                "column": row["column_name"],
+                "priority": row["priority"],
+                "assigned_agent": row["assigned_agent"],
+            })
+
+    cron_jobs = _load_cron_jobs_live()
+    next_runs = []
+    for job in cron_jobs:
+        agent_id = _normalize_agent_value(job.get("agentId") or job.get("agent") or "main")
+        if agent_id in keys:
+            next_runs.append({
+                "name": job.get("name") or job.get("id"),
+                "next_run_at": job.get("state", {}).get("nextRunAtMs"),
+                "schedule": _cron_schedule_label(job),
+                "status": job.get("state", {}).get("lastRunStatus") or job.get("state", {}).get("lastStatus"),
+            })
+    next_runs.sort(key=lambda r: r.get("next_run_at") or 0)
+
+    prompt_excerpt = ""
+    prompt_file = TEAM_PROMPT_FILES.get(agent.get("slug")) if agent.get("slug") else None
+    if not prompt_file and agent.get("slug"):
+        prompt_file = f"{agent['slug']}-prompt.md"
+    if prompt_file:
+        prompt_path = os.path.join("/Users/bill/.openclaw/workspace/agents", prompt_file)
+        if os.path.exists(prompt_path):
+            try:
+                content = Path(prompt_path).read_text(encoding="utf-8")
+                prompt_excerpt = " ".join(content.strip().split())[:200]
+            except Exception:
+                prompt_excerpt = ""
+
+    return jsonify({
+        "agent": agent,
+        "tasks": tasks,
+        "next_runs": next_runs,
+        "prompt_excerpt": prompt_excerpt,
+    })
+
+
 @app.route('/api/crew-status')
 def api_crew_status():
     """Return crew status derived from cron job states."""
@@ -1386,23 +1526,34 @@ def api_crew_status():
                 agent = job.get("agentId", "main")
                 state = job.get("state", {})
                 status = state.get("lastRunStatus", "unknown")
+                last_run_at = state.get("lastRunAtMs") or 0
                 if agent not in agent_map:
-                    agent_map[agent] = {"ok": 0, "error": 0, "total": 0}
+                    agent_map[agent] = {
+                        "ok": 0,
+                        "error": 0,
+                        "total": 0,
+                        "last_run_status": "unknown",
+                        "last_run_at": 0
+                    }
                 agent_map[agent]["total"] += 1
                 if status == "ok":
                     agent_map[agent]["ok"] += 1
                 elif status == "error":
                     agent_map[agent]["error"] += 1
+                if last_run_at and last_run_at > agent_map[agent]["last_run_at"]:
+                    agent_map[agent]["last_run_at"] = last_run_at
+                    agent_map[agent]["last_run_status"] = status
             for agent, counts in agent_map.items():
+                payload = {"agent": agent, "status": "idle", **counts}
                 if counts["error"] > 0:
                     erroring += 1
-                    agent_statuses.append({"agent": agent, "status": "erroring", **counts})
+                    payload["status"] = "erroring"
                 elif counts["ok"] > 0:
                     active += 1
-                    agent_statuses.append({"agent": agent, "status": "active", **counts})
+                    payload["status"] = "active"
                 else:
                     idle += 1
-                    agent_statuses.append({"agent": agent, "status": "idle", **counts})
+                agent_statuses.append(payload)
     except Exception:
         pass
 
@@ -1451,40 +1602,76 @@ def _extract_signal_items(text):
 
 @app.route('/api/signals')
 def api_signals():
-    """Live market signals from pai market-data API + Shark signals."""
+    """Shark trading calls from ICT scanner + snapshot."""
     items = []
+
+    # 1. Try Shark snapshot for trade calls
     try:
-        resp = requests.get("http://192.168.1.189:8500/summary", timeout=8)
-        if resp.status_code == 200:
-            data = resp.json()
-            funding = data.get("funding", {}).get("by_asset", {})
-            for asset in ["BTC", "ETH", "SOL", "HYPE", "AVAX", "XRP"]:
-                if asset in funding:
-                    sources = funding[asset]
-                    # Use Hyperliquid rate as primary
-                    hl = sources.get("hyperliquid", {})
-                    rate = hl.get("rate_8h_pct", 0)
-                    price = hl.get("mark_price", 0)
-                    direction = "LONG" if rate >= 0 else "SHORT"
+        snapshot_file = Path("/Users/bill/.openclaw/workspace/trading/shark/latest_snapshot.txt")
+        if snapshot_file.exists():
+            content = snapshot_file.read_text()
+            import re as _re
+            # Extract setup lines like "SOL 1H HIGH bull SFP at $87.11"
+            for m in _re.finditer(r'(\w+)\s+\d+[HMD]\s+(HIGH|MEDIUM)\s+(bull|bear)\s+(\w+)\s+at\s+\$([\d,\.]+)', content):
+                asset, conf, direction, pattern, price = m.groups()
+                items.append({
+                    "symbol": asset,
+                    "direction": "LONG" if direction == "bull" else "SHORT",
+                    "confidence": conf,
+                    "pattern": pattern,
+                    "raw": f"{asset} {direction.upper()} {pattern} {conf} @ ${price}"
+                })
+    except Exception:
+        pass
+
+    # 2. Try ICT weekly scanner signals
+    try:
+        scanner_file = Path("/Users/bill/.openclaw/workspace/trading/weekly_scanner/signals.json")
+        if scanner_file.exists():
+            data = json.loads(scanner_file.read_text())
+            for sig in data.get("signals", []):
+                if sig.get("confluence_score", 0) >= 70:
+                    symbol = sig.get("symbol", "").replace("/USDT", "").replace("USDT", "")
+                    sig_type = sig.get("signal_type", "neutral")
+                    if sig_type == "neutral":
+                        continue
                     items.append({
-                        "symbol": asset,
-                        "direction": direction,
-                        "price": f"${price:,.0f}" if price > 100 else f"${price:.2f}",
-                        "funding": f"{rate:.4f}%",
-                        "raw": f"{asset} {direction} @ {price} (funding {rate:.4f}%)"
+                        "symbol": symbol,
+                        "direction": "LONG" if sig_type == "bullish" else "SHORT",
+                        "confidence": f"{sig.get('confluence_score', 0)}%",
+                        "pattern": "ICT",
+                        "raw": f"{symbol} {sig_type.upper()} {sig.get('confluence_score')}%"
                     })
     except Exception:
         pass
 
+    # 3. Fallback: Shark snapshot market summary as calls
     if not items:
-        # Fallback to file-based signals
-        signals = get_trading_signals()
-        items = _extract_signal_items(signals.get("signals", ""))
+        try:
+            snapshot_file = Path("/Users/bill/.openclaw/workspace/trading/shark/latest_snapshot.txt")
+            if snapshot_file.exists():
+                content = snapshot_file.read_text()
+                import re as _re
+                # Pull the summary lines: BTC: $66,498.50 (+4.85% 24h)
+                for m in _re.finditer(r'• (\w+):\s+\$([\d,\.]+)\s+\(([+-][\d\.]+)%\s+24h\)', content):
+                    asset, price, change = m.groups()
+                    pct = float(change)
+                    items.append({
+                        "symbol": asset,
+                        "direction": "LONG" if pct >= 0 else "SHORT",
+                        "confidence": f"{abs(pct):.1f}% 24h",
+                        "raw": f"{asset} ${price} ({change}%)"
+                    })
+        except Exception:
+            pass
+
+    if not items:
+        items = [{"symbol": "NO SIGNALS", "direction": "", "confidence": "Shark silent — no clean setups", "raw": ""}]
 
     return jsonify({
         "items": items,
         "updated_at": datetime.now().isoformat(),
-        "source": "pai-market-api" if items and "price" in items[0] else "file-fallback",
+        "source": "shark-calls",
     })
 
 
@@ -1978,20 +2165,48 @@ def api_import_tasks():
         return jsonify({"imported": 0})
 
     def status_to_column(status):
-        status = (status or "").upper()
-        if "DONE" in status:
-            return "DONE"
-        if "REVIEW" in status:
-            return "REVIEW"
-        if "TEST" in status:
-            return "TESTING"
-        if "PROGRESS" in status:
+        status = (status or "").upper().strip()
+        if status == "OPEN":
+            return "INBOX"
+        if status == "IN_PROGRESS":
             return "IN PROGRESS"
-        if "ASSIGNED" in status:
-            return "ASSIGNED"
-        if "PLANNING" in status:
-            return "PLANNING"
+        if status == "DONE":
+            return "DONE"
+        if status == "BLOCKED":
+            return "BLOCKED"
         return "INBOX"
+
+    def normalize_assignee(agent):
+        if not agent:
+            return ""
+        val = str(agent).strip()
+        lower = val.lower()
+        mapping = {
+            "bill": "main",
+            "main": "main",
+            "bob": "Bob",
+            "forge": "Forge",
+            "truth": "Truth",
+            "shark": "Shark",
+            "ace": "ACE",
+            "sam": "Sam",
+            "marty": "Marty",
+            "quill": "Quill",
+            "pixel": "Pixel",
+            "scrub": "Scrub",
+            "scout": "Scout",
+            "content pm": "Content PM",
+            "content_pm": "Content PM",
+            "content-pm": "Content PM",
+            "librarian": "Librarian",
+            "music biz": "Music Biz",
+            "music-biz": "Music Biz",
+            "vitruviano pm": "Vitruviano PM",
+            "vitruviano-pm": "Vitruviano PM",
+            "ops": "Ops",
+            "sentinel": "SENTINEL",
+        }
+        return mapping.get(lower, val)
 
     conn = _kanban_conn()
     existing = conn.execute("SELECT COUNT(*) FROM kanban_tasks").fetchone()[0]
@@ -2017,7 +2232,7 @@ def api_import_tasks():
                 col,
                 0,
                 priority,
-                task.get("agent", ""),
+                normalize_assignee(task.get("agent", "")),
                 "", "", None
             )
         )
@@ -2480,7 +2695,7 @@ import websocket as _ws_client
 import uuid
 
 KANBAN_DB = os.path.join(os.path.dirname(__file__), 'data', 'kanban.db')
-KANBAN_COLUMNS = ['PLANNING', 'INBOX', 'ASSIGNED', 'IN PROGRESS', 'TESTING', 'REVIEW', 'DONE']
+KANBAN_COLUMNS = ['INBOX', 'PLANNING', 'IN PROGRESS', 'TESTING', 'REVIEW', 'BLOCKED', 'DONE']
 
 SHARKTIME_DB = "/Users/bill/.openclaw/workspace/trading/sharktime/signals.db"
 ICT_ALERTS_DB = "/Users/bill/.openclaw/workspace/trading/ict-scanner/alerts.db"

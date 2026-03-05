@@ -36,6 +36,14 @@
         </div>
         <div class="stage-content" id="stage-script"></div>
     </div>
+
+    <div class="pipeline-stage" data-stage="approved">
+        <div class="stage-header">
+            <h2>✅ Approved</h2>
+            <span class="count">0</span>
+        </div>
+        <div class="stage-content" id="stage-approved"></div>
+    </div>
     
     <div class="pipeline-stage" data-stage="visual">
         <div class="stage-header">
@@ -44,14 +52,6 @@
         </div>
         <div class="stage-content" id="stage-visual"></div>
     </div>
-    
-    <div class="pipeline-stage" data-stage="approved">
-        <div class="stage-header">
-            <h2>✅ Approved</h2>
-            <span class="count">0</span>
-        </div>
-        <div class="stage-content" id="stage-approved"></div>
-    </div>
 
     <div class="pipeline-stage" data-stage="published">
         <div class="stage-header">
@@ -59,6 +59,17 @@
             <span class="count">0</span>
         </div>
         <div class="stage-content" id="stage-published"></div>
+    </div>
+</div>
+
+<div class="content-overlay hidden" id="content-overlay">
+    <div class="content-modal" id="content-modal">
+        <div class="modal-header">
+            <h2 id="content-detail-title">Content Detail</h2>
+            <button class="btn btn-ghost" id="content-detail-close">Close</button>
+        </div>
+        <div class="modal-body" id="content-detail-body"></div>
+        <div class="modal-footer" id="content-detail-actions"></div>
     </div>
 </div>
 {% endblock %}

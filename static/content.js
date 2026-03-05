@@ -1,6 +1,7 @@
-const STAGES = ['trending','research','script','visual','approved','published'];
+const STAGES = ['trending','research','script','approved','visual','published'];
 let pipelineData = { items: [] };
 let draggedId = null;
+let activeDetail = null;
 
 const agentFallbacks = {
   trending: 'Scout',
@@ -81,6 +82,8 @@ function buildCard(item) {
       await loadPipeline();
     });
   });
+
+  card.addEventListener('click', () => openDetail(item));
 
   return card;
 }

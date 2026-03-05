@@ -25,12 +25,12 @@ class Shell {
                 return;
             }
             // Double the items for seamless scroll loop
-            const html = items.concat(items).map(item => {
+            const doubled = items.concat(items).concat(items);
+            const html = doubled.map(item => {
                 const dir = (item.direction || '').toLowerCase();
-                const price = item.price ? ` ${item.price}` : '';
-                const funding = item.funding ? ` (${item.funding})` : '';
                 const conf = item.confidence ? ` ${item.confidence}` : '';
-                return `<div class="ticker-item ${dir}">${item.symbol}${price}${funding}${conf}</div>`;
+                const pattern = item.pattern ? ` ${item.pattern}` : '';
+                return `<div class="ticker-item ${dir}">${item.symbol} ${item.direction || ''}${pattern}${conf}</div>`;
             }).join('');
             track.innerHTML = html;
         } catch (e) {

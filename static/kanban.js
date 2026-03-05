@@ -5,13 +5,14 @@
 
 'use strict';
 
-const COLUMNS = ['INBOX','PLANNING','IN PROGRESS','TESTING','REVIEW','DONE'];
+const COLUMNS = ['INBOX','PLANNING','IN PROGRESS','TESTING','REVIEW','BLOCKED','DONE'];
 const COL_COLORS = {
   'INBOX':       'var(--col-inbox)',
   'PLANNING':    'var(--col-planning)',
   'IN PROGRESS': 'var(--col-inprogress)',
   'TESTING':     'var(--col-testing)',
   'REVIEW':      'var(--col-review)',
+  'BLOCKED':     'var(--col-blocked)',
   'DONE':        'var(--col-done)',
 };
 
@@ -170,6 +171,7 @@ function buildCard(task) {
     <div class="card-footer">
       <div class="card-meta-left">
         <span class="avatar" style="background:${avatarColor}">${avatarLabel}</span>
+        <span class="agent-name">${escHtml(agent || 'Unassigned')}</span>
         ${tag ? `<span class="tag-badge">${escHtml(tag)}</span>` : ''}
       </div>
       <span class="card-time">${escHtml(timeLabel)}</span>
@@ -301,8 +303,9 @@ async function loadRecentActivity() {
       const time = item.time || item.timestamp || '';
       const label = time ? formatTime(time) : '';
       const msg = item.message || item.text || item.action || '';
+      const detail = `${agent}: ${msg}${label ? ` · ${label}` : ''}`;
       return `
-        <div class="activity-item">
+        <div class="activity-item" title="${escAttr(detail)}">
           <span class="activity-dot" style="background:${color}"></span>
           <div class="activity-content">
             <strong style="color:${color}">${escHtml(agent)}</strong> ${escHtml(msg)}
