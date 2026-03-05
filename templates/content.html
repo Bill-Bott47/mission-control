@@ -13,52 +13,58 @@
 </header>
 
 <div class="pipeline-board">
-    <div class="pipeline-stage" data-stage="trending">
-        <div class="stage-header">
-            <h2>🔍 Trending</h2>
-            <span class="count">0</span>
+    <div class="pipeline-layer">
+        <div class="pipeline-stage" data-stage="research">
+            <div class="stage-header">
+                <h2>📝 Research</h2>
+                <span class="count">0</span>
+            </div>
+            <div class="stage-content" id="stage-research"></div>
         </div>
-        <div class="stage-content" id="stage-trending"></div>
-    </div>
-    
-    <div class="pipeline-stage" data-stage="research">
-        <div class="stage-header">
-            <h2>📝 Research</h2>
-            <span class="count">0</span>
+
+        <div class="pipeline-stage" data-stage="trending">
+            <div class="stage-header">
+                <h2>🔍 Trending</h2>
+                <span class="count">0</span>
+            </div>
+            <div class="stage-content" id="stage-trending"></div>
         </div>
-        <div class="stage-content" id="stage-research"></div>
-    </div>
-    
-    <div class="pipeline-stage" data-stage="script">
-        <div class="stage-header">
-            <h2>✍️ Script</h2>
-            <span class="count">0</span>
-        </div>
-        <div class="stage-content" id="stage-script"></div>
     </div>
 
-    <div class="pipeline-stage" data-stage="approved">
-        <div class="stage-header">
-            <h2>✅ Approved</h2>
-            <span class="count">0</span>
+    <div class="pipeline-layer">
+        <div class="pipeline-stage" data-stage="script">
+            <div class="stage-header">
+                <h2>✍️ Script</h2>
+                <span class="count">0</span>
+            </div>
+            <div class="stage-content" id="stage-script"></div>
         </div>
-        <div class="stage-content" id="stage-approved"></div>
-    </div>
-    
-    <div class="pipeline-stage" data-stage="visual">
-        <div class="stage-header">
-            <h2>👁️ Visual</h2>
-            <span class="count">0</span>
+
+        <div class="pipeline-stage" data-stage="approved">
+            <div class="stage-header">
+                <h2>✅ Approved</h2>
+                <span class="count">0</span>
+            </div>
+            <div class="stage-content" id="stage-approved"></div>
         </div>
-        <div class="stage-content" id="stage-visual"></div>
     </div>
 
-    <div class="pipeline-stage" data-stage="published">
-        <div class="stage-header">
-            <h2>🚀 Published</h2>
-            <span class="count">0</span>
+    <div class="pipeline-layer pipeline-layer-secondary">
+        <div class="pipeline-stage" data-stage="visual">
+            <div class="stage-header">
+                <h2>👁️ Visual</h2>
+                <span class="count">0</span>
+            </div>
+            <div class="stage-content" id="stage-visual"></div>
         </div>
-        <div class="stage-content" id="stage-published"></div>
+
+        <div class="pipeline-stage" data-stage="published">
+            <div class="stage-header">
+                <h2>🚀 Published</h2>
+                <span class="count">0</span>
+            </div>
+            <div class="stage-content" id="stage-published"></div>
+        </div>
     </div>
 </div>
 
