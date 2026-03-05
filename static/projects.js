@@ -44,9 +44,13 @@ function renderProjects(projects) {
         <span class="status-pill status-${status}">${status}</span>
         <span class="priority-pill">${priority.level} · ${priority.reason}</span>
         <span>Owner: ${project.owner || '—'}</span>
+        <span class="task-pill">${project.task_count || 0} tasks</span>
+        ${(project.task_count || 0) === 0 ? '<span class="no-task-pill">⚠️ No tasks</span>' : ''}
       </div>
+      <a class="view-tasks-link" href="/kanban?project=${encodeURIComponent(project.id)}">View Tasks</a>
       ${ongoing ? '<div class="ongoing-badge">Ongoing</div>' : `<div class="progress-row"><span class="progress-label">${progress}%</span><div class="progress-bar"><span style="width:${progress}%"></span></div></div>`}
     `;
+    card.querySelector('.view-tasks-link').addEventListener('click', (e) => e.stopPropagation());
     card.addEventListener('click', () => showDetail(project, priority, progress));
     grid.appendChild(card);
   });
@@ -65,7 +69,8 @@ async function showDetail(project, priority, progress) {
     const projectTokens = [project.id, project.name, ...(project.tags || [])]
       .filter(Boolean)
       .map(t => String(t).toLowerCase());
-    tasks = (data.tasks || []).filter(t => {
+    const taskList = Array.isArray(data) ? data : (data.tasks || []);
+    tasks = taskList.filter(t => {
       const hay = `${t.title} ${t.description || ''} ${t.tags || ''}`.toLowerCase();
       return projectTokens.some(tok => tok && hay.includes(tok));
     });

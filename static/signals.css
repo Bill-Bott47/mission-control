@@ -1,3 +1,19 @@
+.stale-badge {
+  margin: 0 0 14px;
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hidden {
+  display: none;
+}
+
 .signals-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -33,8 +49,15 @@
   letter-spacing: 0.08em;
 }
 
-.signal-direction.long { background: rgba(34,197,94,0.15); color: var(--success); }
-.signal-direction.short { background: rgba(220,38,38,0.15); color: var(--danger); }
+.signal-direction.long {
+  background: rgba(34,197,94,0.15);
+  color: var(--success);
+}
+
+.signal-direction.short {
+  background: rgba(220,38,38,0.15);
+  color: var(--danger);
+}
 
 .signal-meta {
   font-size: 12px;
@@ -45,7 +68,7 @@
 
 .signal-levels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   font-size: 12px;
 }
@@ -58,7 +81,7 @@
 }
 
 .signal-actions a {
-  color: var(--accent-light);
+  color: #a78bfa;
   text-decoration: none;
   font-size: 12px;
   font-weight: 600;

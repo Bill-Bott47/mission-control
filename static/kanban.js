@@ -41,11 +41,13 @@ const AGENT_COLORS = {
 let allTasks = [];
 let draggedId = null;
 let editingTaskId = null;
+let projectMap = new Map();
 
 // ── INIT ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   buildBoard();
+  loadProjectsFilter();
   loadTasks();
   loadSummary();
   loadRecentActivity();
@@ -62,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-ai-plan').addEventListener('click', runAiPlan);
 
   // Filters
-  ['filter-priority', 'filter-search'].forEach(id => {
+  ['filter-project', 'filter-priority', 'filter-search'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderBoard);
   });
 
@@ -124,6 +126,7 @@ function buildBoard() {
 
 function getFilters() {
   return {
+    project: document.getElementById('filter-project').value,
     priority: document.getElementById('filter-priority').value,
     agent: document.getElementById('filter-agent').value,
     search: document.getElementById('filter-search').value.toLowerCase(),
@@ -131,11 +134,12 @@ function getFilters() {
 }
 
 function renderBoard() {
-  const { priority, agent, search } = getFilters();
+  const { project, priority, agent, search } = getFilters();
 
   COLUMNS.forEach(col => {
     const tasks = allTasks.filter(t => {
       if (t.column_name !== col) return false;
+      if (project && !taskMatchesProject(t, project)) return false;
       if (priority && t.priority !== priority) return false;
       if (agent && t.assigned_agent !== agent) return false;
       if (search && !t.title.toLowerCase().includes(search)) return false;
@@ -150,6 +154,23 @@ function renderBoard() {
     tasks.forEach(task => bodyEl.appendChild(buildCard(task)));
     countEl.textContent = tasks.length;
   });
+}
+
+function taskMatchesProject(task, projectId) {
+  const project = projectMap.get(projectId);
+  if (!project) return true;
+  if ((project.task_ids || []).includes(task.id)) return true;
+  const hay = `${task.title} ${task.description || ''} ${task.tags || ''}`.toLowerCase();
+  const tokens = [
+    project.id,
+    project.name,
+    ...(project.tags || []),
+    project.discord_channel || '',
+  ]
+    .filter(Boolean)
+    .map((s) => String(s).toLowerCase())
+    .filter((s) => s.length >= 3);
+  return tokens.some((token) => hay.includes(token));
 }
 
 function buildCard(task) {
@@ -261,6 +282,30 @@ async function loadTasks() {
   }
 }
 
+async function loadProjectsFilter() {
+  const select = document.getElementById('filter-project');
+  if (!select) return;
+  try {
+    const resp = await fetch('/api/projects');
+    const data = await resp.json();
+    const projects = data.projects || [];
+    projectMap = new Map(projects.map((p) => [p.id, p]));
+    const options = projects
+      .map((p) => `<option value="${escAttr(p.id)}">${escHtml(p.name)} (${p.task_count || 0})</option>`)
+      .join('');
+    select.innerHTML = `<option value="">All projects</option>${options}`;
+
+    const url = new URL(window.location.href);
+    const projectParam = url.searchParams.get('project');
+    if (projectParam && projectMap.has(projectParam)) {
+      select.value = projectParam;
+    }
+    renderBoard();
+  } catch (e) {
+    console.error('loadProjectsFilter:', e);
+  }
+}
+
 async function loadSummary() {
   try {
     const resp = await fetch('/api/task-summary');
@@ -293,22 +338,23 @@ async function loadRecentActivity() {
     const items = data.items || data.activity || data || [];
 
     if (!items.length) {
-      list.innerHTML = '<div style="color:var(--muted);font-size:12px">No activity</div>';
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px">No recent activity</div>';
       return;
     }
 
     list.innerHTML = items.map(item => {
-      const agent = item.agent || item.session || item.user || 'Agent';
-      const color = AGENT_COLORS[agent] || '#7C3AED';
-      const time = item.time || item.timestamp || '';
-      const label = time ? formatTime(time) : '';
-      const msg = item.message || item.text || item.action || '';
-      const detail = `${agent}: ${msg}${label ? ` · ${label}` : ''}`;
+      const source = item.source || 'activity';
+      const color = source === 'git' ? '#3B82F6' : (source === 'cron' ? '#14B8A6' : '#7C3AED');
+      const time = item.timestamp || item.time || '';
+      const label = time ? new Date(time).toLocaleString() : '';
+      const title = item.title || 'Event';
+      const msg = item.description || item.message || item.text || '';
+      const detail = `${title}: ${msg}${label ? ` · ${label}` : ''}`;
       return `
         <div class="activity-item" title="${escAttr(detail)}">
           <span class="activity-dot" style="background:${color}"></span>
           <div class="activity-content">
-            <strong style="color:${color}">${escHtml(agent)}</strong> ${escHtml(msg)}
+            <strong style="color:${color}">${escHtml(title)}</strong> ${escHtml(msg)}
             ${label ? `<span class="activity-time">${escHtml(label)}</span>` : ''}
           </div>
         </div>
@@ -316,7 +362,7 @@ async function loadRecentActivity() {
     }).join('');
   } catch (e) {
     console.error('loadRecentActivity:', e);
-    list.innerHTML = '<div style="color:var(--muted);font-size:12px">Activity unavailable</div>';
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px">No recent activity</div>';
   }
 }
 

@@ -1612,101 +1612,298 @@ def _extract_signal_items(text):
     return items[:12]
 
 
-@app.route('/api/signals')
-def api_signals():
-    """Shark trading calls from ICT scanner + snapshot."""
+def _parse_shark_snapshot(snapshot_path):
     items = []
+    snapshot_time = None
+    file_mtime = None
+    if not snapshot_path.exists():
+        return items, snapshot_time, file_mtime
 
-    # 1. Try Shark snapshot for trade calls
     try:
-        snapshot_file = Path("/Users/bill/.openclaw/workspace/trading/shark/latest_snapshot.txt")
-        if snapshot_file.exists():
-            content = snapshot_file.read_text()
-            import re as _re
-            # Extract setup lines like "SOL 1H HIGH bull SFP at $87.11"
-            # Get timestamp
-            ts_match = _re.search(r'SHARK MARKET WATCH — (\d{4}-\d{2}-\d{2} (\d{2}:\d{2}))', content)
-            call_time = ts_match.group(2) if ts_match else ""
-            # Parse calls with entry + current price
-            for m in _re.finditer(r'(\w+)\s+(\d+[HMD])\s+(HIGH|MEDIUM)\s+(bull|bear)\s+(\w+)\s+at\s+\$([\d,\.]+)\s+\(price at \$([\d,\.]+)', content):
-                asset, tf, conf, direction, pattern, entry, current = m.groups()
-                items.append({
-                    "symbol": asset,
-                    "direction": "LONG" if direction == "bull" else "SHORT",
-                    "confidence": conf,
-                    "pattern": pattern,
-                    "time": call_time,
-                    "entry": f"${entry}",
-                    "raw": f"{call_time} {asset} {direction.upper()} {pattern} {conf} Entry ${entry}"
+        file_mtime = datetime.fromtimestamp(snapshot_path.stat().st_mtime)
+        content = snapshot_path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return items, snapshot_time, file_mtime
+
+    ts_match = re.search(r"SHARK MARKET WATCH\s+[—-]\s+([0-9]{4}-[0-9]{2}-[0-9]{2}\s+[0-9]{2}:[0-9]{2})", content)
+    if ts_match:
+        try:
+            snapshot_time = datetime.strptime(ts_match.group(1), "%Y-%m-%d %H:%M")
+        except ValueError:
+            snapshot_time = None
+
+    setup_pattern = re.compile(
+        r"([A-Z]{2,10})\s+([0-9]+[HMDW])\s+(HIGH|MEDIUM|LOW)\s+(bull|bear)\s+([A-Za-z]+)\s+at\s+\$([0-9,\.]+)\s+\(price at\s+\$([0-9,\.]+)",
+        re.IGNORECASE,
+    )
+    for m in setup_pattern.finditer(content):
+        symbol, timeframe, confidence, direction, pattern, entry, current = m.groups()
+        items.append({
+            "source": "shark_snapshot",
+            "symbol": symbol.upper(),
+            "direction": "LONG" if direction.lower() == "bull" else "SHORT",
+            "confidence": confidence.upper(),
+            "pattern": pattern.upper(),
+            "timeframe": timeframe.upper(),
+            "time": snapshot_time.isoformat() if snapshot_time else None,
+            "entry": f"${entry}",
+            "current": f"${current}",
+            "sl": None,
+            "tp1": None,
+            "tp2": None,
+            "raw": m.group(0),
+        })
+
+    if not items:
+        summary_pattern = re.compile(r"•\s+([A-Z]{2,10}):\s+\$([0-9,\.]+)\s+\(([+-][0-9\.]+)%\s+24h\)")
+        for m in summary_pattern.finditer(content):
+            symbol, price, pct = m.groups()
+            try:
+                pct_f = float(pct)
+            except ValueError:
+                pct_f = 0.0
+            items.append({
+                "source": "shark_snapshot",
+                "symbol": symbol.upper(),
+                "direction": "LONG" if pct_f >= 0 else "SHORT",
+                "confidence": f"{abs(pct_f):.2f}% 24h",
+                "pattern": "MARKET SNAPSHOT",
+                "time": snapshot_time.isoformat() if snapshot_time else None,
+                "entry": f"${price}",
+                "sl": None,
+                "tp1": None,
+                "tp2": None,
+                "raw": m.group(0),
+            })
+
+    return items, snapshot_time, file_mtime
+
+
+def _parse_scanner_signals(scanner_path):
+    items = []
+    scanner_time = None
+    file_mtime = None
+    if not scanner_path.exists():
+        return items, scanner_time, file_mtime
+
+    try:
+        file_mtime = datetime.fromtimestamp(scanner_path.stat().st_mtime)
+        payload = json.loads(scanner_path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return items, scanner_time, file_mtime
+
+    last_scan = payload.get("last_scan")
+    if isinstance(last_scan, str):
+        try:
+            scanner_time = datetime.fromisoformat(last_scan.replace("Z", "+00:00"))
+        except ValueError:
+            scanner_time = None
+
+    for sig in payload.get("signals", []):
+        if not isinstance(sig, dict):
+            continue
+        signal_type = (sig.get("signal_type") or "").lower()
+        if signal_type in ("neutral", ""):
+            continue
+        symbol = (sig.get("symbol") or sig.get("asset") or "").replace("/USDT", "").replace("USDT", "").strip().upper()
+        if not symbol:
+            continue
+
+        items.append({
+            "source": "ict_scanner",
+            "symbol": symbol,
+            "direction": "LONG" if signal_type == "bullish" else "SHORT",
+            "confidence": f"{sig.get('confluence_score', 0)}%",
+            "pattern": "ICT",
+            "timeframe": sig.get("timeframe") or "—",
+            "time": sig.get("timestamp") or (scanner_time.isoformat() if scanner_time else None),
+            "entry": sig.get("entry") or sig.get("entry_price") or sig.get("current_price"),
+            "sl": sig.get("sl") or sig.get("stop_loss") or sig.get("stop"),
+            "tp1": sig.get("tp1") or sig.get("target1"),
+            "tp2": sig.get("tp2") or sig.get("target2"),
+            "raw": sig.get("id") or f"{symbol} {signal_type}",
+        })
+
+    return items, scanner_time, file_mtime
+
+
+def _to_iso_or_none(dt_obj):
+    if not dt_obj:
+        return None
+    try:
+        return dt_obj.isoformat()
+    except Exception:
+        return None
+
+
+def _approval_status_from_reply(reply_text):
+    text = (reply_text or "").strip().lower()
+    if not text:
+        return None
+    approved_terms = ("approved", "yes", "go", "do it")
+    rejected_terms = ("no", "reject", "kill", "cancel")
+    if any(term in text for term in approved_terms):
+        return "approved"
+    if any(term in text for term in rejected_terms):
+        return "rejected"
+    return "pending"
+
+
+def _build_recent_activity_events(limit=20):
+    events = []
+    cutoff = datetime.now() - timedelta(days=7)
+
+    # 1) Recent git commits
+    try:
+        result = subprocess.run(
+            ["git", "log", "--oneline", "-10", "--since=7 days ago", "--date=iso-strict", "--pretty=format:%H|%cI|%s"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                parts = line.split("|", 2)
+                if len(parts) != 3:
+                    continue
+                sha, ts, msg = parts
+                try:
+                    ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if ts_dt.replace(tzinfo=None) < cutoff:
+                    continue
+                events.append({
+                    "timestamp": ts_dt.isoformat(),
+                    "title": f"Git commit {sha[:7]}",
+                    "description": msg,
+                    "source": "git",
                 })
     except Exception:
         pass
 
-    # 2. Try ICT weekly scanner signals
+    # 2) Recent cron completions from gateway
     try:
-        scanner_file = Path("/Users/bill/.openclaw/workspace/trading/weekly_scanner/signals.json")
-        if scanner_file.exists():
-            data = json.loads(scanner_file.read_text())
-            for sig in data.get("signals", []):
-                if sig.get("confluence_score", 0) >= 70:
-                    symbol = sig.get("symbol", "").replace("/USDT", "").replace("USDT", "")
-                    sig_type = sig.get("signal_type", "neutral")
-                    if sig_type == "neutral":
-                        continue
-                    items.append({
-                        "symbol": symbol,
-                        "direction": "LONG" if sig_type == "bullish" else "SHORT",
-                        "confidence": f"{sig.get('confluence_score', 0)}%",
-                        "pattern": "ICT",
-                        "raw": f"{symbol} {sig_type.upper()} {sig.get('confluence_score')}%"
-                    })
+        result = subprocess.run(
+            ["/opt/homebrew/bin/openclaw", "cron", "list", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            payload = json.loads(result.stdout)
+            jobs = []
+            if isinstance(payload, dict) and "jobs" in payload:
+                inner = payload["jobs"]
+                if isinstance(inner, dict):
+                    jobs = inner.get("jobs", [])
+                elif isinstance(inner, list):
+                    jobs = inner
+            elif isinstance(payload, list):
+                jobs = payload
+
+            for job in jobs:
+                state = job.get("state") or {}
+                last_run = state.get("lastRun")
+                if not last_run:
+                    continue
+                try:
+                    run_dt = datetime.fromisoformat(str(last_run).replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if run_dt.replace(tzinfo=None) < cutoff:
+                    continue
+                events.append({
+                    "timestamp": run_dt.isoformat(),
+                    "title": "Cron completion",
+                    "description": f"{job.get('name') or job.get('id')}: {state.get('lastRunStatus') or 'unknown'}",
+                    "source": "cron",
+                })
     except Exception:
         pass
 
-    # 3. Fallback: Shark snapshot market summary as calls
-    if not items:
-        try:
-            snapshot_file = Path("/Users/bill/.openclaw/workspace/trading/shark/latest_snapshot.txt")
-            if snapshot_file.exists():
-                content = snapshot_file.read_text()
-                import re as _re
-                # Pull the summary lines: BTC: $66,498.50 (+4.85% 24h)
-                for m in _re.finditer(r'• (\w+):\s+\$([\d,\.]+)\s+\(([+-][\d\.]+)%\s+24h\)', content):
-                    asset, price, change = m.groups()
-                    pct = float(change)
-                    items.append({
-                        "symbol": asset,
-                        "direction": "LONG" if pct >= 0 else "SHORT",
-                        "confidence": f"{abs(pct):.1f}% 24h",
-                        "raw": f"{asset} ${price} ({change}%)"
-                    })
-        except Exception:
-            pass
+    # 3) Memory daily file updates
+    try:
+        memory_dir = Path("/Users/bill/.openclaw/workspace/memory")
+        if memory_dir.exists():
+            for path in sorted(memory_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:12]:
+                mtime = datetime.fromtimestamp(path.stat().st_mtime)
+                if mtime < cutoff:
+                    continue
+                events.append({
+                    "timestamp": mtime.isoformat(),
+                    "title": "Memory updated",
+                    "description": path.name,
+                    "source": "memory",
+                })
+    except Exception:
+        pass
 
-    if not items:
-        items = [{"symbol": "NO SIGNALS", "direction": "", "confidence": "Shark silent — no clean setups", "raw": ""}]
+    events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
+    return events[:limit]
+
+
+@app.route('/api/signals')
+def api_signals():
+    """Unified trading signals from Shark snapshot + ICT scanner files."""
+    snapshot_file = Path("/Users/bill/.openclaw/workspace/trading/shark/latest_snapshot.txt")
+    scanner_file = Path("/Users/bill/.openclaw/workspace/trading/weekly_scanner/signals.json")
+
+    snapshot_items, snapshot_time, snapshot_mtime = _parse_shark_snapshot(snapshot_file)
+    scanner_items, scanner_time, scanner_mtime = _parse_scanner_signals(scanner_file)
+
+    all_items = snapshot_items + scanner_items
+    deduped = []
+    seen = set()
+    for item in all_items:
+        key = (
+            item.get("source"),
+            item.get("symbol"),
+            item.get("direction"),
+            item.get("timeframe"),
+            item.get("entry"),
+            item.get("time"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+
+    if not deduped:
+        deduped = [{
+            "source": "none",
+            "symbol": "NO SIGNALS",
+            "direction": "",
+            "confidence": "Shark silent — no clean setups",
+            "pattern": "—",
+            "timeframe": "—",
+            "time": None,
+            "entry": None,
+            "sl": None,
+            "tp1": None,
+            "tp2": None,
+            "raw": "",
+        }]
+
+    newest = max([t for t in (snapshot_time, scanner_time, snapshot_mtime, scanner_mtime) if t] or [datetime.now()])
+    age_seconds = max(0, int((datetime.now() - newest.replace(tzinfo=None)).total_seconds()))
+    stale = age_seconds > 86400
 
     return jsonify({
-        "items": items,
+        "items": deduped[:20],
         "updated_at": datetime.now().isoformat(),
-        "source": "shark-calls",
+        "data_updated_at": _to_iso_or_none(newest),
+        "source": "shark+ict-files",
+        "snapshot_mtime": _to_iso_or_none(snapshot_mtime),
+        "scanner_mtime": _to_iso_or_none(scanner_mtime),
+        "stale": stale,
+        "age_seconds": age_seconds,
     })
 
 
 @app.route('/api/recent-activity')
 def api_recent_activity():
-    entries = _build_message_timeline(limit=10)
-    simplified = []
-    for entry in entries:
-        simplified.append({
-            "id": entry.get("id"),
-            "title": entry.get("title"),
-            "agent": entry.get("agent"),
-            "timestamp": entry.get("timestamp"),
-            "level": entry.get("level"),
-            "mc_path": entry.get("mc_path"),
-        })
-    return jsonify({"items": simplified})
+    return jsonify({"items": _build_recent_activity_events(limit=30)})
 
 
 @app.route('/api/task-summary')
@@ -1960,7 +2157,6 @@ def api_usage_channels():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/usage/reports')
 def api_usage_codex():
     """Pull Codex/GPT usage from local Codex CLI SQLite DB."""
     import sqlite3 as _sqlite3
@@ -2021,7 +2217,45 @@ def api_projects():
         return jsonify({"projects": []})
     try:
         projects = json.loads(projects_file.read_text())
-        return jsonify({"projects": projects})
+        init_kanban_db()
+        conn = _kanban_conn()
+        task_rows = conn.execute("SELECT id, title, description, tags FROM kanban_tasks").fetchall()
+        conn.close()
+
+        task_records = []
+        for row in task_rows:
+            task_records.append({
+                "id": row["id"],
+                "search": " ".join([
+                    str(row["title"] or ""),
+                    str(row["description"] or ""),
+                    str(row["tags"] or ""),
+                ]).lower(),
+            })
+
+        enriched = []
+        for project in projects:
+            p = dict(project)
+            tokens = set()
+            for token in [p.get("id"), p.get("name"), p.get("discord_channel"), *(p.get("tags") or [])]:
+                if not token:
+                    continue
+                t = str(token).lower().strip()
+                if t:
+                    tokens.add(t)
+                if "-" in t:
+                    tokens.update([seg for seg in t.split("-") if len(seg) >= 3])
+
+            task_ids = []
+            for task in task_records:
+                if any(tok and len(tok) >= 3 and tok in task["search"] for tok in tokens):
+                    task_ids.append(task["id"])
+
+            p["task_count"] = len(task_ids)
+            p["task_ids"] = task_ids
+            enriched.append(p)
+
+        return jsonify({"projects": enriched})
     except json.JSONDecodeError:
         return jsonify({"projects": []})
 
@@ -2148,6 +2382,9 @@ def api_approvals_update(approval_id):
     payload = request.get_json(silent=True) or {}
     status = payload.get("status")
     reply_text = payload.get("reply_text", "")
+    inferred_status = _approval_status_from_reply(reply_text)
+    if inferred_status:
+        status = inferred_status
     fields = []
     values = []
     if status:
@@ -2156,6 +2393,9 @@ def api_approvals_update(approval_id):
         if status in ("approved", "rejected"):
             fields.append("resolved_at=?")
             values.append(datetime.now().isoformat())
+        else:
+            fields.append("resolved_at=?")
+            values.append(None)
     if reply_text is not None:
         fields.append("reply_text=?")
         values.append(reply_text)

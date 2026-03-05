@@ -3,7 +3,6 @@ const minimaxBody = document.getElementById('minimax-body');
 const minimaxMeta = document.getElementById('minimax-meta');
 const channelTable = document.getElementById('channel-table');
 const channelMeta = document.getElementById('channel-meta');
-const costTable = document.getElementById('cost-table');
 const reportDaily = document.getElementById('report-daily');
 const reportMonthly = document.getElementById('report-monthly');
 const reportMeta = document.getElementById('report-meta');
@@ -11,16 +10,8 @@ const reportMeta = document.getElementById('report-meta');
 const statusClass = (status) => {
   if (!status) return 'warn';
   const normalized = status.toLowerCase();
-  if (['ok', 'online', 'up', 'healthy'].includes(normalized)) return 'up';
-  if (['dead', 'down', 'error', 'billing-error', 'offline'].includes(normalized)) return 'down';
-  return 'warn';
-};
-
-const jobStatusClass = (status) => {
-  if (!status) return 'warn';
-  const normalized = status.toLowerCase();
-  if (normalized === 'ok' || normalized === 'success') return 'ok';
-  if (normalized === 'error' || normalized === 'failed') return 'error';
+  if (['ok', 'online', 'up', 'healthy', 'running'].includes(normalized)) return 'up';
+  if (['dead', 'down', 'error', 'billing-error', 'offline', 'stopped'].includes(normalized)) return 'down';
   return 'warn';
 };
 
@@ -29,13 +20,17 @@ const renderProviders = (providers) => {
     providerGrid.innerHTML = '<div class="card">No provider data available.</div>';
     return;
   }
-  providerGrid.innerHTML = providers.map(provider => {
+
+  providerGrid.innerHTML = providers.map((provider) => {
     const state = statusClass(provider.status);
     return `
       <div class="provider-card">
         <div class="provider-header">
           <div class="provider-title">${provider.name}</div>
-          <span class="status-pill ${state}">${provider.status || 'unknown'}</span>
+          <div class="provider-status ${state}">
+            <span class="provider-dot"></span>
+            ${provider.status || 'unknown'}
+          </div>
         </div>
         <div class="provider-cost">${provider.cost || '—'}</div>
         <div class="provider-meta">${provider.usage || ''}</div>
@@ -51,28 +46,29 @@ const renderMinimax = (payload) => {
     minimaxMeta.textContent = 'Error';
     return;
   }
+
   const models = payload.models || [];
-  if (payload.window_remaining) {
-    minimaxMeta.textContent = payload.window_remaining;
-  } else {
-    minimaxMeta.textContent = payload.window_remaining_seconds ? `${payload.window_remaining_seconds}s remaining` : 'Live quota';
-  }
+  minimaxMeta.textContent = payload.window_remaining || 'Rolling window';
+
   if (!models.length) {
     minimaxBody.textContent = 'No usage details returned.';
     return;
   }
-  minimaxBody.innerHTML = models.map(model => {
-    const used = model.used ?? 0;
-    const total = model.total ?? 0;
+
+  minimaxBody.innerHTML = models.map((model) => {
+    const used = Number(model.used || 0);
+    const total = Number(model.total || 0);
+    const remaining = Number(model.remaining || 0);
     const pct = total ? Math.min(100, Math.round((used / total) * 100)) : 0;
+
     return `
       <div class="minimax-row">
         <div class="minimax-row-header">
           <strong>${model.name || 'Model'}</strong>
-          <span>${used} / ${total}</span>
+          <span>${pct}%</span>
         </div>
         <div class="progress-bar"><span style="width:${pct}%"></span></div>
-        <div class="provider-meta">${pct}% used ${model.remaining ? `• ${model.remaining} remaining` : ''}</div>
+        <div class="minimax-foot">${used.toLocaleString()} used / ${total.toLocaleString()} total • ${remaining.toLocaleString()} remaining</div>
       </div>
     `;
   }).join('');
@@ -80,60 +76,22 @@ const renderMinimax = (payload) => {
 
 const renderChannels = (channels) => {
   if (!channels || channels.length === 0) {
-    channelTable.innerHTML = '<div class="placeholder">No cron usage data.</div>';
+    channelTable.innerHTML = '<div class="placeholder">No channel burn data.</div>';
     return;
   }
-  channelTable.innerHTML = channels.map(channel => {
-    const jobsMarkup = (channel.jobs || []).map(job => {
-      return `
-        <div class="channel-job">
-          <strong>${job.name}</strong>
-          <div>Model: ${job.model || '—'}</div>
-          <div>Frequency: ${job.frequency || '—'}</div>
-          <div>Est. calls/day: ${job.calls_per_day || '—'}</div>
-          <div><span class="status-tag ${jobStatusClass(job.last_status)}">${job.last_status || 'unknown'}</span></div>
-        </div>
-      `;
-    }).join('');
 
-    return `
-      <div class="channel-card-item">
-        <div class="channel-header">
-          <div class="channel-title">${channel.channel_name}</div>
-          <div class="channel-usage">${channel.total_calls_per_day} calls/day</div>
-        </div>
-        <div class="channel-jobs">${jobsMarkup}</div>
-      </div>
-    `;
-  }).join('');
-};
+  const topFive = [...channels].sort((a, b) => (b.total_calls_per_day || 0) - (a.total_calls_per_day || 0)).slice(0, 5);
 
-const renderCostTable = (providers) => {
-  if (!providers || providers.length === 0) {
-    costTable.innerHTML = '<div class="placeholder">Cost estimates unavailable.</div>';
-    return;
-  }
-  const header = `
-    <div class="cost-row header">
-      <div>Provider</div>
-      <div>Monthly Cost</div>
-      <div>Channels / Use</div>
-      <div>Status</div>
-    </div>
-  `;
-  const rows = providers.map(provider => `
-    <div class="cost-row">
-      <div>${provider.name}</div>
-      <div>${provider.cost || '—'}</div>
-      <div>${provider.usage || ''}</div>
-      <div><span class="status-tag ${statusClass(provider.status)}">${provider.status || 'unknown'}</span></div>
+  channelTable.innerHTML = topFive.map((channel) => `
+    <div class="channel-card-item">
+      <div class="channel-title">${channel.channel_name || 'Unknown channel'}</div>
+      <div class="channel-usage">${Number(channel.total_calls_per_day || 0).toLocaleString()} calls/day</div>
     </div>
   `).join('');
-  costTable.innerHTML = header + rows;
 };
 
 const escapeHtml = (text) => {
-  return text
+  return String(text || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
@@ -144,13 +102,15 @@ const renderMarkdown = (raw) => {
   const lines = escapeHtml(raw).split('\n');
   let html = '';
   let inList = false;
+
   const flushList = () => {
     if (inList) {
       html += '</ul>';
       inList = false;
     }
   };
-  lines.forEach(line => {
+
+  lines.forEach((line) => {
     if (line.startsWith('### ')) {
       flushList();
       html += `<h4>${line.slice(4)}</h4>`;
@@ -174,6 +134,7 @@ const renderMarkdown = (raw) => {
       html += `<li>${line.slice(2)}</li>`;
       return;
     }
+
     flushList();
     if (line.trim() === '') {
       html += '<br>';
@@ -182,6 +143,7 @@ const renderMarkdown = (raw) => {
       html += `<p>${bolded}</p>`;
     }
   });
+
   flushList();
   return html;
 };
@@ -192,10 +154,11 @@ const renderReports = (payload) => {
     reportMonthly.textContent = '';
     return;
   }
+
   reportDaily.innerHTML = renderMarkdown(payload.daily || '');
   reportMonthly.innerHTML = renderMarkdown(payload.monthly || '');
   if (payload.updated_at) {
-    reportMeta.textContent = `Updated ${payload.updated_at}`;
+    reportMeta.textContent = `Updated ${new Date(payload.updated_at).toLocaleString()}`;
   }
 };
 
@@ -206,33 +169,19 @@ const renderCodex = (data) => {
     el.textContent = data?.error || 'Codex data unavailable';
     return;
   }
-  const fmt = (n) => n ? n.toLocaleString() : '0';
+
+  const fmt = (n) => Number(n || 0).toLocaleString();
   el.innerHTML = `
     <div class="codex-stats">
       <div class="codex-stat">
-        <div class="codex-stat-value">${fmt(data.total_tokens)}</div>
-        <div class="codex-stat-label">Total tokens (all time)</div>
-      </div>
-      <div class="codex-stat">
         <div class="codex-stat-value">${fmt(data.last_24h_tokens)}</div>
-        <div class="codex-stat-label">Last 24h (${data.last_24h_sessions} sessions)</div>
+        <div class="codex-stat-label">Today (${fmt(data.last_24h_sessions)} sessions)</div>
       </div>
       <div class="codex-stat">
         <div class="codex-stat-value">${fmt(data.last_7d_tokens)}</div>
-        <div class="codex-stat-label">Last 7 days (${data.last_7d_sessions} sessions)</div>
+        <div class="codex-stat-label">This week (${fmt(data.last_7d_sessions)} sessions)</div>
       </div>
     </div>
-    ${data.recent_sessions ? `
-      <div class="codex-recent">
-        <div class="provider-meta" style="margin-bottom:8px;">Recent sessions:</div>
-        ${data.recent_sessions.map(s => `
-          <div class="codex-session">
-            <span class="codex-session-title">${s.title || 'Untitled'}</span>
-            <span class="codex-session-tokens">${fmt(s.tokens)} tok</span>
-          </div>
-        `).join('')}
-      </div>
-    ` : ''}
   `;
 };
 
@@ -248,7 +197,6 @@ const loadUsage = async () => {
 
     const providers = await providerRes.json();
     renderProviders(providers.providers || providers);
-    renderCostTable(providers.providers || providers);
 
     const minimax = await minimaxRes.json();
     renderMinimax(minimax);
@@ -259,7 +207,7 @@ const loadUsage = async () => {
     const channels = await channelRes.json();
     renderChannels(channels.channels || channels);
     if (channels.updated_at) {
-      channelMeta.textContent = `Updated ${channels.updated_at}`;
+      channelMeta.textContent = `Updated ${new Date(channels.updated_at).toLocaleString()}`;
     }
 
     const reports = await reportRes.json();

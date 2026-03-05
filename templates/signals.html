@@ -6,9 +6,10 @@
 {% block content %}
 <header class="page-header">
     <h1>Market Signals</h1>
-    <span class="subtle">Latest Shark calls from /api/signals</span>
+    <span class="subtle" id="signals-meta">Latest Shark + ICT calls</span>
 </header>
 
+<div id="signals-stale" class="stale-badge hidden"></div>
 <div class="signals-grid" id="signals-grid"></div>
 {% endblock %}
 

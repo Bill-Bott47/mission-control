@@ -6,62 +6,58 @@
 {% block content %}
 <header class="page-header">
     <h1>Usage</h1>
-    <span class="subtle">Provider health, live usage, and channel burn</span>
+    <span class="subtle">Provider health, quota pressure, and burn</span>
 </header>
 
-<section class="usage-top">
+<section class="usage-layout">
     <div class="provider-grid" id="provider-grid">
         <div class="card">Loading providers...</div>
     </div>
+
     <div class="card minimax-card" id="minimax-card">
         <div class="card-header">
-            <h2>MiniMax Live Usage</h2>
+            <h2>MiniMax Usage</h2>
             <span class="card-meta" id="minimax-meta">Checking live quota</span>
         </div>
         <div id="minimax-body" class="minimax-body">Loading...</div>
     </div>
+
     <div class="card codex-card" id="codex-card">
         <div class="card-header">
-            <h2>Codex / GPT Usage</h2>
-            <span class="card-meta">From local CLI database</span>
+            <h2>Codex Usage</h2>
+            <span class="card-meta">Tokens today / this week</span>
         </div>
         <div id="codex-body" class="codex-body">Loading...</div>
     </div>
+
     <div class="card claude-card">
         <div class="card-header">
             <h2>Claude Max</h2>
-            <span class="card-meta">Planned</span>
+            <span class="card-meta">Plan details</span>
         </div>
-        <div class="provider-meta" style="padding:12px;">Usage tracking via browser scrape — planned. Jonathan Telegram sessions only.</div>
+        <div class="claude-copy">
+            $200/mo Max plan — Opus (Telegram DM, #bill-direct), Sonnet (agents when quota available). Weekly rolling limits.
+            <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">Open console.anthropic.com</a>
+        </div>
     </div>
 </section>
 
 <section class="usage-section">
     <div class="card channel-card">
         <div class="card-header">
-            <h2>Usage by Channel</h2>
-            <span class="card-meta" id="channel-meta">Top burn channels</span>
+            <h2>Channel Burn</h2>
+            <span class="card-meta" id="channel-meta">Top 5 channels by usage</span>
         </div>
         <div id="channel-table" class="channel-table">Loading...</div>
     </div>
 </section>
 
 <section class="usage-section">
-    <div class="card cost-card">
-        <div class="card-header">
-            <h2>Cost Estimate</h2>
-            <span class="card-meta">Monthly allocation overview</span>
-        </div>
-        <div id="cost-table" class="cost-table">Loading...</div>
-    </div>
-</section>
-
-<section class="usage-section">
-    <div class="card report-card">
-        <div class="card-header">
-            <h2>SENTINEL Reports</h2>
+    <details class="card report-card" open>
+        <summary class="report-summary">
+            <span>SENTINEL Reports</span>
             <span class="card-meta" id="report-meta">Latest daily + monthly ROI</span>
-        </div>
+        </summary>
         <div class="report-grid">
             <div class="report-block">
                 <h3>Latest Daily</h3>
@@ -72,7 +68,7 @@
                 <div id="report-monthly" class="markdown">Loading...</div>
             </div>
         </div>
-    </div>
+    </details>
 </section>
 {% endblock %}
 
