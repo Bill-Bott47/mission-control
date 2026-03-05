@@ -172,6 +172,8 @@ body {
   font-weight: 600;
   color: var(--text-secondary, #8888AA);
   white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
 }
 .ticker-item.long { color: #22C55E; }
 .ticker-item.short { color: #DC2626; }
