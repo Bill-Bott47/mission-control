@@ -1632,11 +1632,12 @@ def _parse_shark_snapshot(snapshot_path):
         except ValueError:
             snapshot_time = None
 
-    setup_pattern = re.compile(
+    # Format 1: OLD — "SOL 1H HIGH bull SFP at $87.11 (price at $85.18"
+    setup_pattern_old = re.compile(
         r"([A-Z]{2,10})\s+([0-9]+[HMDW])\s+(HIGH|MEDIUM|LOW)\s+(bull|bear)\s+([A-Za-z]+)\s+at\s+\$([0-9,\.]+)\s+\(price at\s+\$([0-9,\.]+)",
         re.IGNORECASE,
     )
-    for m in setup_pattern.finditer(content):
+    for m in setup_pattern_old.finditer(content):
         symbol, timeframe, confidence, direction, pattern, entry, current = m.groups()
         items.append({
             "source": "shark_snapshot",
@@ -1653,6 +1654,53 @@ def _parse_shark_snapshot(snapshot_path):
             "tp2": None,
             "raw": m.group(0),
         })
+
+    # Format 2: NEW — "🔴 SFP [HIGH] — bear_sfp @ swept $72,669.80"
+    setup_pattern_new = re.compile(
+        r"[🔴🟢]\s+(\w+)\s+\[(HIGH|MEDIUM|LOW)\]\s+[—-]\s+(bull|bear)_(\w+)\s+@?\s*(?:swept\s+)?\$([0-9,\.]+)",
+        re.IGNORECASE,
+    )
+    for m in setup_pattern_new.finditer(content):
+        pattern, confidence, direction, sub_pattern, price = m.groups()
+        items.append({
+            "source": "shark_snapshot",
+            "symbol": "",
+            "direction": "LONG" if direction.lower() == "bull" else "SHORT",
+            "confidence": confidence.upper(),
+            "pattern": pattern.upper(),
+            "time": snapshot_time.isoformat() if snapshot_time else None,
+            "entry": f"${price}",
+            "current": None,
+            "sl": None,
+            "tp1": None,
+            "tp2": None,
+            "raw": m.group(0),
+        })
+
+    # Format 3: NEW — "🟢 OB — bull_ob $82.43–$84.82" or "🟢 FVG — bull_fvg $87.51–$88.68"
+    zone_pattern = re.compile(
+        r"[🔴🟢]\s+(\w+)\s+[—-]\s+(bull|bear)_(\w+)\s+\$([0-9,\.]+)[–-]\$([0-9,\.]+)",
+        re.IGNORECASE,
+    )
+    for m in zone_pattern.finditer(content):
+        pattern, direction, sub_pattern, price_low, price_high = m.groups()
+        # Avoid duplicate if already matched by setup_pattern_new
+        raw = m.group(0)
+        if not any(i["raw"] == raw for i in items):
+            items.append({
+                "source": "shark_snapshot",
+                "symbol": "",
+                "direction": "LONG" if direction.lower() == "bull" else "SHORT",
+                "confidence": "MEDIUM",
+                "pattern": pattern.upper(),
+                "time": snapshot_time.isoformat() if snapshot_time else None,
+                "entry": f"${price_low}–${price_high}",
+                "current": None,
+                "sl": None,
+                "tp1": None,
+                "tp2": None,
+                "raw": raw,
+            })
 
     if not items:
         summary_pattern = re.compile(r"•\s+([A-Z]{2,10}):\s+\$([0-9,\.]+)\s+\(([+-][0-9\.]+)%\s+24h\)")
