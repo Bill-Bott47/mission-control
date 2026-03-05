@@ -2533,8 +2533,31 @@ def api_projects():
             })
 
         enriched = []
+        bucket_overrides = {
+            "phoenix-agency": "operations",
+            "council-system": "operations",
+            "pai-infrastructure": "wiki",
+            "sentinel": "operations",
+            "music-biz": "operations",
+            "trading-systems": "operations",
+            "content-pipeline": "operations",
+            "bills-business": "wiki",
+            "youtube-agent": "wiki",
+            "web3-research": "projects",
+            "voice-feedback-bot": "projects",
+        }
+        status_overrides = {
+            "emma": ("completed", 100),
+            "health-tracking": ("completed", 100),
+            "youtube-agent": ("discussion", 10),
+        }
         for project in projects:
             p = dict(project)
+            p["bucket"] = bucket_overrides.get(p.get("id"), "projects")
+            if p.get("id") in status_overrides:
+                status, progress = status_overrides[p["id"]]
+                p["status"] = status
+                p["progress"] = progress
             tokens = set()
             for token in [p.get("id"), p.get("name"), p.get("discord_channel"), *(p.get("tags") or [])]:
                 if not token:
@@ -2564,7 +2587,7 @@ def api_memory_files():
     memory_dir = Path("/Users/bill/.openclaw/workspace/memory")
     files = []
     if memory_dir.exists():
-        files = sorted([str(p) for p in memory_dir.glob("*.md")])
+        files = [str(p) for p in sorted(memory_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)]
     memory_main = Path("/Users/bill/.openclaw/workspace/MEMORY.md")
     if memory_main.exists():
         files.append(str(memory_main))

@@ -12,43 +12,69 @@ const STATUS_PROGRESS = {
   'live': 90
 };
 
-const ONGOING_PROJECTS = new Set([
-  'phoenix-agency',
-  'music-biz',
-  'trading-systems',
-  'pai-infrastructure',
-  'sentinel',
-  'web3-research'
-]);
+let allProjects = [];
+let activeBucket = 'projects';
 
 async function loadProjects() {
   const resp = await fetch('/api/projects');
   const data = await resp.json();
-  renderProjects(data.projects || []);
+  allProjects = data.projects || [];
+  renderTabs();
+  renderProjects();
 }
 
-function renderProjects(projects) {
+function renderTabs() {
+  const tabs = document.getElementById('project-tabs');
+  if (!tabs) return;
+  const counts = {
+    projects: allProjects.filter(p => (p.bucket || 'projects') === 'projects').length,
+    operations: allProjects.filter(p => p.bucket === 'operations').length,
+    wiki: allProjects.filter(p => p.bucket === 'wiki').length
+  };
+  tabs.innerHTML = ['projects', 'operations', 'wiki'].map((bucket) => `
+    <button class="project-tab ${activeBucket === bucket ? 'active' : ''}" data-bucket="${bucket}">
+      ${bucket[0].toUpperCase() + bucket.slice(1)} (${counts[bucket] || 0})
+    </button>
+  `).join('');
+  tabs.querySelectorAll('.project-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      activeBucket = btn.dataset.bucket;
+      renderTabs();
+      renderProjects();
+    });
+  });
+}
+
+function renderProjects() {
   const grid = document.getElementById('projects-grid');
   grid.innerHTML = '';
+  const projects = allProjects
+    .filter((project) => (project.bucket || 'projects') === activeBucket)
+    .sort((a, b) => Number(b.progress || 0) - Number(a.progress || 0));
+  if (!projects.length) {
+    grid.innerHTML = '<div class="placeholder">No items in this bucket.</div>';
+    return;
+  }
   projects.forEach(project => {
     const priority = PRIORITY_MAP[project.id] || { level: 'Medium', reason: 'Active build' };
     const status = project.status || 'planning';
+    const statusClass = String(status).toLowerCase().replace(/\s+/g, '-');
     const progress = Number.isFinite(project.progress) ? project.progress : (STATUS_PROGRESS[status] || 40);
-    const ongoing = ONGOING_PROJECTS.has(project.id);
+    const ongoing = activeBucket !== 'projects';
     const card = document.createElement('div');
     card.className = 'project-card';
     card.innerHTML = `
       <div class="project-title">${project.name}</div>
       <div class="project-desc">${project.description || ''}</div>
       <div class="project-meta">
-        <span class="status-pill status-${status}">${status}</span>
+        <span class="status-pill status-${statusClass}">${status}</span>
         <span class="priority-pill">${priority.level} · ${priority.reason}</span>
         <span>Owner: ${project.owner || '—'}</span>
         <span class="task-pill">${project.task_count || 0} tasks</span>
         ${(project.task_count || 0) === 0 ? '<span class="no-task-pill">⚠️ No tasks</span>' : ''}
       </div>
       <a class="view-tasks-link" href="/kanban?project=${encodeURIComponent(project.id)}">View Tasks</a>
-      ${ongoing ? '<div class="ongoing-badge">Ongoing</div>' : `<div class="progress-row"><span class="progress-label">${progress}%</span><div class="progress-bar"><span style="width:${progress}%"></span></div></div>`}
+      ${ongoing ? `<div class="ongoing-badge">${activeBucket === 'wiki' ? 'Wiki / Research' : 'Ongoing Operation'}</div>` : `<div class="progress-row"><span class="progress-label">${progress}%</span><div class="progress-bar"><span style="width:${progress}%"></span></div></div>`}
     `;
     card.querySelector('.view-tasks-link').addEventListener('click', (e) => e.stopPropagation());
     card.addEventListener('click', () => showDetail(project, priority, progress));
