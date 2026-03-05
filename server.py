@@ -119,6 +119,10 @@ _phoenix_cache = {
     'timestamp': 0,
     'ttl': 60  # 60 seconds
 }
+_usage_cache = {
+    "channels": {"data": None, "timestamp": 0, "ttl": 60},
+    "reports": {"data": None, "timestamp": 0, "ttl": 60},
+}
 
 OPENCLAW_BIN = os.environ.get("OPENCLAW_BIN") or shutil.which("openclaw") or "/opt/homebrew/bin/openclaw"
 
@@ -2386,10 +2390,15 @@ def api_usage_minimax():
 
 @app.route('/api/usage/channels')
 def api_usage_channels():
+    cached = _usage_cache["channels"]
+    now = time.time()
+    if cached["data"] is not None and (now - cached["timestamp"]) < cached["ttl"]:
+        return jsonify(cached["data"])
     try:
-        result = subprocess.run(["/opt/homebrew/bin/openclaw", "cron", "list", "--json"], capture_output=True, text=True, timeout=15)
-        if result.returncode != 0:
-            return jsonify({"error": result.stderr.strip() or "cron list failed"}), 500
+        result = _run_openclaw(["cron", "list", "--json"], timeout=12)
+        if not result or result.returncode != 0:
+            err = result.stderr.strip() if result and result.stderr else "cron list failed"
+            return jsonify({"error": err}), 500
         payload = json.loads(result.stdout)
         jobs = []
         if isinstance(payload, dict) and "jobs" in payload:
@@ -2448,10 +2457,12 @@ def api_usage_channels():
         channels = sorted(channel_map.values(), key=lambda item: item["total_calls_per_day"], reverse=True)
         for channel in channels:
             channel["total_calls_per_day"] = round(channel["total_calls_per_day"], 2)
-        return jsonify({
+        response_payload = {
             "channels": channels,
             "updated_at": datetime.now().isoformat(),
-        })
+        }
+        _usage_cache["channels"] = {"data": response_payload, "timestamp": now, "ttl": 60}
+        return jsonify(response_payload)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2494,17 +2505,23 @@ def _api_usage_codex():
 
 @app.route('/api/usage/reports')
 def api_usage_reports():
+    cached = _usage_cache["reports"]
+    now = time.time()
+    if cached["data"] is not None and (now - cached["timestamp"]) < cached["ttl"]:
+        return jsonify(cached["data"])
     try:
         if not os.path.exists(SENTINEL_REVIEWS_FILE):
             return jsonify({"error": "sentinel-reviews.md not found"}), 404
         content = Path(SENTINEL_REVIEWS_FILE).read_text(encoding="utf-8")
         daily, monthly = _extract_latest_report_sections(content)
         updated_at = datetime.fromtimestamp(Path(SENTINEL_REVIEWS_FILE).stat().st_mtime).isoformat()
-        return jsonify({
+        response_payload = {
             "daily": daily,
             "monthly": monthly,
             "updated_at": updated_at,
-        })
+        }
+        _usage_cache["reports"] = {"data": response_payload, "timestamp": now, "ttl": 60}
+        return jsonify(response_payload)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

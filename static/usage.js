@@ -185,13 +185,11 @@ const renderCodex = (data) => {
   `;
 };
 
-const loadUsage = async () => {
+const loadCoreUsage = async () => {
   try {
-    const [providerRes, minimaxRes, channelRes, reportRes, codexRes] = await Promise.all([
+    const [providerRes, minimaxRes, codexRes] = await Promise.all([
       fetch('/api/usage/providers'),
       fetch('/api/usage/minimax'),
-      fetch('/api/usage/channels'),
-      fetch('/api/usage/reports'),
       fetch('/api/usage/codex')
     ]);
 
@@ -203,18 +201,80 @@ const loadUsage = async () => {
 
     const codex = await codexRes.json();
     renderCodex(codex);
-
-    const channels = await channelRes.json();
-    renderChannels(channels.channels || channels);
-    if (channels.updated_at) {
-      channelMeta.textContent = `Updated ${new Date(channels.updated_at).toLocaleString()}`;
-    }
-
-    const reports = await reportRes.json();
-    renderReports(reports);
   } catch (err) {
     providerGrid.innerHTML = '<div class="card">Failed to load usage data.</div>';
   }
 };
 
-loadUsage();
+const loadChannels = async () => {
+  try {
+    const channelRes = await fetch('/api/usage/channels');
+    const channels = await channelRes.json();
+    renderChannels(channels.channels || channels);
+    if (channels.updated_at) {
+      channelMeta.textContent = `Updated ${new Date(channels.updated_at).toLocaleString()}`;
+    }
+  } catch (err) {
+    channelTable.innerHTML = '<div class="placeholder">Channel burn unavailable.</div>';
+  }
+};
+
+const loadReports = async () => {
+  try {
+    const reportRes = await fetch('/api/usage/reports');
+    const reports = await reportRes.json();
+    renderReports(reports);
+  } catch (err) {
+    reportDaily.textContent = 'Reports unavailable.';
+    reportMonthly.textContent = '';
+  }
+};
+
+const setupLazyLoading = () => {
+  const channelCard = document.getElementById('channel-card');
+  const reportCard = document.getElementById('report-card');
+  let channelsLoaded = false;
+  let reportsLoaded = false;
+
+  const loadChannelsOnce = () => {
+    if (channelsLoaded) return;
+    channelsLoaded = true;
+    loadChannels();
+  };
+
+  if (channelCard && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          loadChannelsOnce();
+          observer.disconnect();
+        }
+      });
+    }, { rootMargin: '120px' });
+    observer.observe(channelCard);
+  } else {
+    setTimeout(loadChannelsOnce, 300);
+  }
+
+  if (reportCard) {
+    reportCard.addEventListener('toggle', () => {
+      if (reportCard.open && !reportsLoaded) {
+        reportsLoaded = true;
+        loadReports();
+      }
+    });
+    if (reportCard.open && !reportsLoaded) {
+      reportsLoaded = true;
+      loadReports();
+    }
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadCoreUsage();
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(setupLazyLoading, { timeout: 600 });
+  } else {
+    setTimeout(setupLazyLoading, 150);
+  }
+});
