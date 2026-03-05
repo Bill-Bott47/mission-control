@@ -12,6 +12,10 @@ function asDisplay(value, prefixDollar = false) {
   return String(value);
 }
 
+function isMissingLevel(value) {
+  return value === null || value === undefined || value === '' || String(value).toLowerCase() === 'null';
+}
+
 async function loadSignalsPage() {
   const resp = await fetch('/api/signals');
   const data = await resp.json();
@@ -37,12 +41,15 @@ async function loadSignalsPage() {
 
 function renderSignals(items) {
   const grid = document.getElementById('signals-grid');
+  const note = document.getElementById('signals-note');
   grid.innerHTML = '';
+  if (note) note.classList.add('hidden');
   if (!items.length) {
     grid.innerHTML = '<div class="placeholder">No signals available.</div>';
     return;
   }
 
+  let allMissingLevels = true;
   items.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'signal-card';
@@ -51,10 +58,16 @@ function renderSignals(items) {
     const pattern = item.pattern || item.setup || item.model || '—';
     const confidence = item.confidence || item.confidence_score || '—';
     const entry = asDisplay(item.entry || item.price || item.entry_price);
-    const sl = asDisplay(item.sl || item.stop || item.stop_loss);
-    const tp1 = asDisplay(item.tp1 || item.target1);
-    const tp2 = asDisplay(item.tp2 || item.target2);
+    const rawSl = item.sl ?? item.stop ?? item.stop_loss;
+    const rawTp1 = item.tp1 ?? item.target1;
+    const rawTp2 = item.tp2 ?? item.target2;
+    const sl = asDisplay(rawSl);
+    const tp1 = asDisplay(rawTp1);
+    const tp2 = asDisplay(rawTp2);
     const asset = item.symbol || item.asset || item.pair || '—';
+    if (!isMissingLevel(rawSl) || !isMissingLevel(rawTp1) || !isMissingLevel(rawTp2)) {
+      allMissingLevels = false;
+    }
 
     card.innerHTML = `
       <div class="signal-header">
@@ -78,6 +91,11 @@ function renderSignals(items) {
     `;
     grid.appendChild(card);
   });
+
+  if (note && allMissingLevels) {
+    note.textContent = 'SL/TP auto-calculation coming soon';
+    note.classList.remove('hidden');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', loadSignalsPage);

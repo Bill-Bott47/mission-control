@@ -96,7 +96,8 @@
 
 .progress-bar {
   height: 10px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(124, 58, 237, 0.35);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -104,7 +105,7 @@
 .progress-bar span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #7C3AED, #A78BFA);
+  background: #7C3AED;
 }
 
 .minimax-foot {

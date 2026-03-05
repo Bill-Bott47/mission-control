@@ -2017,7 +2017,7 @@ def api_usage_providers():
             "key": "claude",
             "name": "Claude (Opus + Sonnet)",
             "cost": "$200/mo (Max plan)",
-            "usage": "Opus: Telegram DM + #bill-direct. Sonnet: Forge, Truth, Content PM (when quota available)",
+            "usage": "Opus: Telegram + #bill-direct. Sonnet: agents (when quota available). No API for usage tracking yet.",
             "status": get_status("claude", "ok"),
             "note": (provider_health.get("claude", {}) or {}).get("note", "Weekly rolling limits per model"),
         },
@@ -3000,6 +3000,22 @@ def init_kanban_db():
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_kanban_column ON kanban_tasks(column_name)")
+    conn.execute(
+        """
+        INSERT INTO kanban_tasks (title, description, column_name, position, priority, assigned_agent, tags, ai_notes, due_date)
+        SELECT ?, ?, 'INBOX',
+               COALESCE((SELECT MAX(position) + 1 FROM kanban_tasks WHERE column_name = 'INBOX'), 0),
+               'medium', 'Scout', 'videri,hardware,planning', '', NULL
+        WHERE NOT EXISTS (
+            SELECT 1 FROM kanban_tasks WHERE title = ?
+        )
+        """,
+        (
+            "Videri Digital Display — Define project scope and deliverables",
+            "Define Videri project scope, success criteria, and deliverables for execution planning.",
+            "Videri Digital Display — Define project scope and deliverables",
+        ),
+    )
     conn.commit()
     conn.close()
 
