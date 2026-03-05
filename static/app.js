@@ -55,7 +55,7 @@ class Dashboard {
             const price = item.price ? ` ${item.price}` : '';
             const funding = item.funding ? ` (${item.funding})` : '';
             const confidence = item.confidence ? ` ${item.confidence}` : '';
-            return `<div class="ticker-item ${dirClass}">${item.symbol}${price}${funding}${confidence}</div>`;
+            return `<a href="/signals" class="ticker-item ${dirClass}">${item.symbol}${price}${funding}${confidence}</a>`;
         }).join('');
 
         track.innerHTML = html;

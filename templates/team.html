@@ -79,4 +79,18 @@
         </div>
     </div>
 </section>
+
+<div class="team-overlay hidden" id="team-overlay">
+    <div class="team-modal" id="team-modal">
+        <div class="modal-header">
+            <h2 id="team-detail-title">Agent Detail</h2>
+            <button class="btn btn-ghost" id="team-detail-close">Close</button>
+        </div>
+        <div class="modal-body" id="team-detail-body"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='team.js') }}"></script>
 {% endblock %}

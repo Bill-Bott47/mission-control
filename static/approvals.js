@@ -19,6 +19,7 @@ function renderApprovals() {
     const card = document.createElement('div');
     card.className = 'approval-card';
     if (selectedApprovalId === item.id) card.classList.add('selected');
+    card.dataset.id = String(item.id);
     card.innerHTML = `
       <div class="approval-title">${item.title}</div>
       <div class="approval-desc">${item.description || ''}</div>
@@ -33,6 +34,10 @@ function renderApprovals() {
 
 function showDetail(item) {
   selectedApprovalId = item.id;
+  document.querySelectorAll('.approval-card').forEach(card => {
+    card.classList.toggle('selected', card.dataset.id === String(item.id));
+  });
+  document.getElementById('approvals-list').classList.toggle('dim', true);
   const detail = document.getElementById('approval-detail-body');
   detail.innerHTML = `
     <div><strong>Title:</strong> ${item.title}</div>

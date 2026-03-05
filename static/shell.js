@@ -37,7 +37,7 @@ class Shell {
                 const pattern = item.pattern ? `${item.pattern}` : '';
                 // Format: Time · ASSET DIRECTION · Pattern Confidence · Entry · SL · TP1 · TP2
                 const parts = [time, `${item.symbol} ${item.direction || ''}`, pattern, conf, entry, sl, tp1, tp2].filter(Boolean);
-                return `<div class="ticker-item ${dir}">${parts.join(' · ')}</div>`;
+                return `<a href="/signals" class="ticker-item ${dir}">${parts.join(' · ')}</a>`;
             }).join('');
             track.innerHTML = html;
         } catch (e) {

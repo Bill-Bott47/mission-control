@@ -1336,6 +1336,11 @@ def calendar_page():
     return render_template('calendar.html')
 
 
+@app.route('/signals')
+def signals_page():
+    return render_template('signals.html')
+
+
 @app.route('/content')
 def content_page():
     return render_template('content.html')
@@ -2157,7 +2162,27 @@ def api_approvals_update(approval_id):
     conn.close()
     if not row:
         return jsonify({"error": "not found"}), 404
-    return jsonify(dict(row))
+
+    # Route the decision to the agent via OpenClaw gateway
+    result = dict(row)
+    try:
+        title = result.get("title", "Unknown")
+        submitted_by = result.get("submitted_by", "unknown")
+        action = status or "updated"
+        reply = reply_text or ""
+        # Post to Discord #inbox so Bill/agents can act on it
+        msg = f"📋 **Approval {action.upper()}** by Jonathan\n**Item:** {title}\n**Submitted by:** {submitted_by}"
+        if reply:
+            msg += f"\n**Reply:** {reply}"
+        subprocess.Popen(
+            ["/opt/homebrew/bin/openclaw", "message", "send",
+             "--channel", "discord", "--target", "1475882688559845541", "--message", msg],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+    except Exception:
+        pass  # Don't fail the API if notification fails
+
+    return jsonify(result)
 
 
 @app.route('/api/import-tasks', methods=['POST'])

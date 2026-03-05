@@ -22,6 +22,9 @@
                 <a href="/" class="{% if request.path == '/' %}active{% endif %}">
                     <span class="nav-left"><span class="nav-icon">🏠</span>Dashboard</span>
                 </a>
+                <a href="/signals" class="{% if request.path.startswith('/signals') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">📈</span>Signals</span>
+                </a>
                 <a href="/kanban" class="{% if request.path.startswith('/kanban') %}active{% endif %}">
                     <span class="nav-left"><span class="nav-icon">🧩</span>Tasks</span>
                 </a>

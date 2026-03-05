@@ -44,6 +44,8 @@
     transition: all 0.3s;
 }
 
+.agent-card.clickable { cursor: pointer; }
+
 .agent-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
@@ -219,3 +221,70 @@
 .agent-vitruviano-pm .agent-avatar { background: rgba(132, 204, 22, 0.2); border-color: #84CC16; }
 .agent-ops .agent-avatar { background: rgba(113, 113, 122, 0.2); border-color: #71717A; }
 .agent-sentinel .agent-avatar { background: rgba(100, 116, 139, 0.2); border-color: #64748B; }
+
+.team-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+}
+
+.team-overlay.hidden { display: none; }
+
+.team-modal {
+    width: min(760px, 92vw);
+    background: var(--bg-card-alt);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.45);
+}
+
+.team-modal .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.team-modal .modal-body {
+    display: grid;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.detail-section h3 {
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.detail-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.detail-chip {
+    background: rgba(124, 58, 237, 0.12);
+    border: 1px solid rgba(124, 58, 237, 0.35);
+    border-radius: 999px;
+    padding: 2px 6px;
+    font-size: 11px;
+}
+
+.detail-block {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-primary);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+}

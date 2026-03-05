@@ -1,0 +1,65 @@
+.signals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.signal-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.signal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.signal-asset {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.signal-direction {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.signal-direction.long { background: rgba(34,197,94,0.15); color: var(--success); }
+.signal-direction.short { background: rgba(220,38,38,0.15); color: var(--danger); }
+
+.signal-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: grid;
+  gap: 4px;
+}
+
+.signal-levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+  font-size: 12px;
+}
+
+.signal-level {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+
+.signal-actions a {
+  color: var(--accent-light);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+}
