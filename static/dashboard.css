@@ -48,6 +48,43 @@
 
 .crew-summary { display: grid; gap: 8px; }
 
+.card.clickable { cursor: pointer; }
+
+.crew-detail {
+  display: none;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-primary);
+  padding-top: 10px;
+  gap: 8px;
+}
+
+.card.expanded .crew-detail { display: grid; }
+
+.crew-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-primary);
+}
+
+.crew-agent-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.crew-agent-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.crew-meta { font-size: 11px; color: var(--text-muted); }
+
 .crew-row, .health-row {
   display: flex;
   align-items: center;

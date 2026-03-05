@@ -1612,14 +1612,20 @@ def api_signals():
             content = snapshot_file.read_text()
             import re as _re
             # Extract setup lines like "SOL 1H HIGH bull SFP at $87.11"
-            for m in _re.finditer(r'(\w+)\s+\d+[HMD]\s+(HIGH|MEDIUM)\s+(bull|bear)\s+(\w+)\s+at\s+\$([\d,\.]+)', content):
-                asset, conf, direction, pattern, price = m.groups()
+            # Get timestamp
+            ts_match = _re.search(r'SHARK MARKET WATCH — (\d{4}-\d{2}-\d{2} (\d{2}:\d{2}))', content)
+            call_time = ts_match.group(2) if ts_match else ""
+            # Parse calls with entry + current price
+            for m in _re.finditer(r'(\w+)\s+(\d+[HMD])\s+(HIGH|MEDIUM)\s+(bull|bear)\s+(\w+)\s+at\s+\$([\d,\.]+)\s+\(price at \$([\d,\.]+)', content):
+                asset, tf, conf, direction, pattern, entry, current = m.groups()
                 items.append({
                     "symbol": asset,
                     "direction": "LONG" if direction == "bull" else "SHORT",
                     "confidence": conf,
                     "pattern": pattern,
-                    "raw": f"{asset} {direction.upper()} {pattern} {conf} @ ${price}"
+                    "time": call_time,
+                    "entry": f"${entry}",
+                    "raw": f"{call_time} {asset} {direction.upper()} {pattern} {conf} Entry ${entry}"
                 })
     except Exception:
         pass

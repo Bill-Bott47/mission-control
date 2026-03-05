@@ -88,6 +88,67 @@ function buildCard(item) {
   return card;
 }
 
+function openDetail(item) {
+  activeDetail = item;
+  renderDetail(item);
+  document.getElementById('content-overlay').classList.remove('hidden');
+}
+
+function closeDetail() {
+  activeDetail = null;
+  document.getElementById('content-overlay').classList.add('hidden');
+}
+
+function renderDetail(item) {
+  const agent = inferAgent(item);
+  const detail = document.getElementById('content-detail-body');
+  const actions = document.getElementById('content-detail-actions');
+  const created = item.created_at ? new Date(item.created_at).toLocaleString() : '—';
+  const updated = item.updated_at ? new Date(item.updated_at).toLocaleString() : '—';
+  const content = item.content || {};
+
+  document.getElementById('content-detail-title').textContent = item.topic || 'Content Detail';
+
+  detail.innerHTML = `
+    <div><strong>Assigned Agent:</strong> ${escapeHtml(agent)}</div>
+    <div><strong>Stage:</strong> ${escapeHtml(item.stage || 'trending')}</div>
+    <div><strong>Source:</strong> ${escapeHtml(item.source || '—')}</div>
+    <div><strong>Created:</strong> ${created}</div>
+    <div><strong>Updated:</strong> ${updated}</div>
+    ${content.research ? `<div><strong>Research</strong><div class="content-detail-block">${escapeHtml(content.research)}</div></div>` : ''}
+    ${content.script ? `<div><strong>Script</strong><div class="content-detail-block">${escapeHtml(content.script)}</div></div>` : ''}
+    ${content.visual_url ? `<div><strong>Visual</strong><div class="content-detail-block">${escapeHtml(content.visual_url)}</div></div>` : ''}
+  `;
+
+  const approveBtn = `<button class="btn btn-primary" data-action="approve">Approve</button>`;
+  const rejectBtn = `<button class="btn btn-ghost" data-action="reject">Reject</button>`;
+  const closeBtn = `<button class="btn btn-secondary" data-action="close">Close</button>`;
+
+  actions.innerHTML = `${item.stage !== 'approved' && item.stage !== 'published' ? approveBtn : ''}
+    ${!item.killed ? rejectBtn : ''}
+    ${closeBtn}`;
+
+  actions.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (btn.dataset.action === 'approve') {
+        await fetch(`/api/content-pipeline/${item.id}/approve`, { method: 'PUT' });
+        await loadPipeline();
+        const updated = pipelineData.items.find(i => i.id === item.id) || item;
+        activeDetail = updated;
+        renderDetail(updated);
+      } else if (btn.dataset.action === 'reject') {
+        await fetch(`/api/content-pipeline/${item.id}/kill`, { method: 'PUT' });
+        await loadPipeline();
+        const updated = pipelineData.items.find(i => i.id === item.id) || item;
+        activeDetail = updated;
+        renderDetail(updated);
+      } else if (btn.dataset.action === 'close') {
+        closeDetail();
+      }
+    });
+  });
+}
+
 function renderRejected() {
   const killed = pipelineData.items.filter(i => i.killed);
   let section = document.getElementById('killed-section');
@@ -157,4 +218,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDrag();
   document.getElementById('add-content').addEventListener('click', addContent);
   document.getElementById('refresh-pipeline').addEventListener('click', loadPipeline);
+  document.getElementById('content-detail-close').addEventListener('click', closeDetail);
+  document.getElementById('content-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'content-overlay') closeDetail();
+  });
 });

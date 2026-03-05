@@ -11,6 +11,15 @@ class Dashboard {
         this.loadSystemHealth();
         this.loadRecentActivity();
         this.loadTaskSummary();
+
+        const crewCard = document.getElementById('crew-card');
+        if (crewCard) {
+            crewCard.classList.add('clickable');
+            crewCard.addEventListener('click', (e) => {
+                if (e.target.closest('button') || e.target.closest('a')) return;
+                crewCard.classList.toggle('expanded');
+            });
+        }
         
         // Auto-refresh
         setInterval(() => {
@@ -78,6 +87,24 @@ class Dashboard {
         
         meta.textContent = `${active} active, ${erroring} erroring`;
         
+        const agents = (data.agents || []).slice().sort((a, b) => a.agent.localeCompare(b.agent));
+        const detailRows = agents.map(item => {
+            const statusClass = item.status === 'erroring' ? 'down' : item.status === 'active' ? 'up' : 'warn';
+            const statusLabel = item.status || 'idle';
+            const lastStatus = item.last_run_status || 'unknown';
+            const errors = item.error || 0;
+            return `
+                <div class="crew-detail-row">
+                    <div class="crew-agent-name">${this.escapeHtml(item.agent)}</div>
+                    <div class="crew-agent-meta">
+                        <span class="status-pill ${statusClass}">${statusLabel}</span>
+                        <span class="crew-meta">Last: ${this.escapeHtml(lastStatus)}</span>
+                        <span class="crew-meta">Errors: ${errors}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
         const html = `
             <div class="crew-summary">
                 <div class="crew-row">
@@ -93,8 +120,11 @@ class Dashboard {
                     <span class="status-pill warn">${idle}</span>
                 </div>
             </div>
+            <div class="crew-detail">
+                ${detailRows || '<div class="placeholder">No crew data available</div>'}
+            </div>
         `;
-        
+
         container.innerHTML = html;
     }
 

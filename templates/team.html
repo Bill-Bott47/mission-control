@@ -15,7 +15,7 @@
 
 <div class="team-grid">
     {% for agent in agents %}
-    <div class="agent-card status-{{ agent.status }} agent-{{ agent.slug }}">
+    <div class="agent-card status-{{ agent.status }} agent-{{ agent.slug }}" data-slug="{{ agent.slug }}">
         <div class="agent-header">
             <div class="agent-avatar">{{ agent.emoji }}</div>
             <div class="agent-info">

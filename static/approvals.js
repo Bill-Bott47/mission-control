@@ -1,4 +1,5 @@
 let approvals = [];
+let selectedApprovalId = null;
 
 async function loadApprovals() {
   const resp = await fetch('/api/approvals');
@@ -17,6 +18,7 @@ function renderApprovals() {
   approvals.forEach(item => {
     const card = document.createElement('div');
     card.className = 'approval-card';
+    if (selectedApprovalId === item.id) card.classList.add('selected');
     card.innerHTML = `
       <div class="approval-title">${item.title}</div>
       <div class="approval-desc">${item.description || ''}</div>
@@ -26,9 +28,11 @@ function renderApprovals() {
     list.appendChild(card);
   });
   if (approvals[0]) showDetail(approvals[0]);
+  list.classList.toggle('dim', !!selectedApprovalId);
 }
 
 function showDetail(item) {
+  selectedApprovalId = item.id;
   const detail = document.getElementById('approval-detail-body');
   detail.innerHTML = `
     <div><strong>Title:</strong> ${item.title}</div>

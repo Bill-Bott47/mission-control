@@ -28,9 +28,16 @@ class Shell {
             const doubled = items.concat(items).concat(items);
             const html = doubled.map(item => {
                 const dir = (item.direction || '').toLowerCase();
-                const conf = item.confidence ? ` ${item.confidence}` : '';
-                const pattern = item.pattern ? ` ${item.pattern}` : '';
-                return `<div class="ticker-item ${dir}">${item.symbol} ${item.direction || ''}${pattern}${conf}</div>`;
+                const time = item.time || '';
+                const entry = item.entry ? `Entry ${item.entry}` : '';
+                const sl = item.sl ? `SL ${item.sl}` : '';
+                const tp1 = item.tp1 ? `TP1 ${item.tp1}` : '';
+                const tp2 = item.tp2 ? `TP2 ${item.tp2}` : '';
+                const conf = item.confidence ? `${item.confidence}` : '';
+                const pattern = item.pattern ? `${item.pattern}` : '';
+                // Format: Time · ASSET DIRECTION · Pattern Confidence · Entry · SL · TP1 · TP2
+                const parts = [time, `${item.symbol} ${item.direction || ''}`, pattern, conf, entry, sl, tp1, tp2].filter(Boolean);
+                return `<div class="ticker-item ${dir}">${parts.join(' · ')}</div>`;
             }).join('');
             track.innerHTML = html;
         } catch (e) {

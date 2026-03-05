@@ -46,7 +46,16 @@ function scheduleLabel(job) {
 async function loadCalendar() {
   const resp = await fetch('/api/cron-jobs-live');
   const data = await resp.json();
-  const jobs = data.jobs?.jobs || data.jobs || [];
+  let jobs = [];
+  if (Array.isArray(data)) {
+    jobs = data;
+  } else if (Array.isArray(data.jobs)) {
+    jobs = data.jobs;
+  } else if (data.jobs?.jobs && Array.isArray(data.jobs.jobs)) {
+    jobs = data.jobs.jobs;
+  } else if (data.jobs && data.jobs.jobs && Array.isArray(data.jobs.jobs)) {
+    jobs = data.jobs.jobs;
+  }
   renderLegend(jobs);
   renderDay(jobs);
   renderAlwaysRunning(jobs);
