@@ -1,0 +1,830 @@
+[
+  {
+    "id": 60,
+    "title": "T-030: Fix Content Pipeline Discord Bot \u2014 Token Conflict",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "`discord-bot/bot.py` uses `DISCORD_BOT_TOKEN` \u2014 same token as OpenClaw gateway. Dual WebSocket connections on same token cause conflicts. Bot was disabled as a result."
+  },
+  {
+    "id": 61,
+    "title": "T-085: morning-brief Timeout Fix",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "morning-brief cron timed out at 180s (DeepSeek model, 6am Feb 28 run). Jonathan missed his morning brief. Root cause: timeout was 180s \u2014 insufficient for DeepSeek which can take 2-3 min first token."
+  },
+  {
+    "id": 62,
+    "title": "T-080: Fix trading:closing-read Timeout",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "trading:closing-read recurring timeouts (120\u2013300s). Timeout already set to 600s \u2014 something else causing it. Check run logs, identify bottleneck, simplify prompt or fix browser interaction."
+  },
+  {
+    "id": 63,
+    "title": "T-096: Agent Architecture Audit \u2014 Enforce 7-10 Skills Per Agent",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Every agent must have: (1) 3 specific measurable goals, (2) 7-10 skills max \u2014 no more, (3) a defined heartbeat/cadence. Audit all current agents (Bill, Scout, Shark, ACE, Quill, Scrub, Music Biz, Truth, SENTINEL) against this standard. Kill or split any that are bloated."
+  },
+  {
+    "id": 64,
+    "title": "T-107: Polymarket Yes+No Arb Bot \u2014 DONE \u2705 (2026-03-04)",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": "Paper-mode arb bot. Detects when YES+NO token combined price < $0.97 on Polymarket binary markets. Logs opportunities to file."
+  },
+  {
+    "id": 65,
+    "title": "T-108: Hyperliquid Funding Rate Harvester \u2014 DONE \u2705 (2026-03-04)",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": "Paper-mode delta-neutral strategy. Long spot + short perp on HL, collect funding rate. MAVIA spotted at 644% annualized. Position opened in paper mode."
+  },
+  {
+    "id": 66,
+    "title": "T-109: Health Data \u2192 Morning Brief \u2014 DONE \u2705 (2026-03-04)",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": "Wire real Oura + Withings data into morning brief cron. `health/fetch_live_health.py` fetches live sleep, readiness, HRV, steps, weight, body composition."
+  },
+  {
+    "id": 67,
+    "title": "T-105: Mission Control Overhaul \u2014 Dashboard + Navigation",
+    "column": "IN PROGRESS",
+    "agent": "bob",
+    "tags": "",
+    "priority": "medium",
+    "description": "Audit every route, fix broken navigation/templates/JS, redesign main dashboard to show agent roster (from agents/ROSTER.md), active tasks, today's priorities, system health summary, and quick links. Update title to \"Mission Control\". Ensure all routes render without JS errors."
+  },
+  {
+    "id": 68,
+    "title": "T-112: Mission Control v2 Visual + Functional Rebuild (Spec Bob Round 3)",
+    "column": "IN PROGRESS",
+    "agent": "bob",
+    "tags": "",
+    "priority": "medium",
+    "description": "Execute mission-control/specs/bob-round3.md visual + functional rebuild (new templates/styles/layout/UX). Port to server on port 8889, test routes, commit + push feature/mc-v2-visual."
+  },
+  {
+    "id": 69,
+    "title": "T-097: SuperData API Integration \u2014 Social Media Transcript Analyzer",
+    "column": "IN PROGRESS",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "SuperData API turns any YouTube/Twitter/Instagram/TikTok link into a transcript. This directly solves the \"can't read YouTube videos\" problem that keeps coming up. Add to Scrub's toolkit and wire into Bill's main tools."
+  },
+  {
+    "id": 70,
+    "title": "T-098: YouTube Agent \u2014 Dedicated Narrow Agent for Jonathan's YouTube",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": "Build a dedicated YouTube agent with: Goals (subs/views/conversions), Skills: YouTube research (SerpAPI), thumbnail scraping (competitor analysis), Notion script control, NanoBanana for thumbnails. Separate from Quill \u2014 Quill does social media broadly; this agent owns YouTube specifically."
+  },
+  {
+    "id": 71,
+    "title": "T-099: Competitor Thumbnail Scraper \u2014 Morning Brief",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": "Every morning, scrape competitor YouTube channel thumbnails, generate modification ideas with Jonathan's face using image generation. Fires as part of YouTube agent heartbeat."
+  },
+  {
+    "id": 72,
+    "title": "T-100: NanoBanana / FAL.ai Integration \u2014 Image Generation for Thumbnails",
+    "column": "INBOX",
+    "agent": "pixel",
+    "tags": "",
+    "priority": "medium",
+    "description": "Add image generation capability (NanoBanana or FAL.ai) for thumbnail generation. Need Jonathan's photos in workspace for personalized image gen."
+  },
+  {
+    "id": 73,
+    "title": "T-101: SerpAPI Integration \u2014 YouTube Research Tool",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": "SerpAPI enables structured YouTube/Google search results. Add to Scrub + YouTube agent toolkit."
+  },
+  {
+    "id": 74,
+    "title": "T-095: Monitor mistral-nemo:12b on librarian + weekly-file-review crons",
+    "column": "IN PROGRESS",
+    "agent": "ops",
+    "tags": "",
+    "priority": "medium",
+    "description": "Switched librarian-nightly-review (3dbeebf3) and weekly-file-review (71f93150) from default model \u2192 ollama/mistral-nemo:12b. Test run for 1 week."
+  },
+  {
+    "id": 75,
+    "title": "T-094: Browser Control Service \u2014 Intermittent Timeout Fix",
+    "column": "DONE",
+    "agent": "bill \u2192 Forge review completed",
+    "tags": "",
+    "priority": "medium",
+    "description": "Browser control service (openclaw gateway \u2192 port 18789 browser bridge) times out intermittently. Gateway restart fixes it temporarily but it keeps dropping. Managed browser itself stays running (port 18800). Root cause unknown \u2014 needs proper diagnosis and a stable restart/watchdog solution."
+  },
+  {
+    "id": 76,
+    "title": "T-093: Integrate 4 Free Agent Tools (Here.now, Tavily, Firecrawl, Remotion)",
+    "column": "BLOCKED",
+    "agent": "bill \u2192 Forge review completed",
+    "tags": "",
+    "priority": "medium",
+    "description": "Integrate into agent toolkit: Here.now (instant hosting), Tavily (web search), Firecrawl (web scraping), Remotion (video generation). AgentMail skipped per Jonathan."
+  },
+  {
+    "id": 77,
+    "title": "T-092: Agent Restructure + Idea Flow System",
+    "column": "DONE",
+    "agent": "bill \u2192 Forge review completed",
+    "tags": "",
+    "priority": "medium",
+    "description": "1. \u2705 Rewrite Scrub soul: internet research + trending content surfacing (not social media manager)"
+  },
+  {
+    "id": 78,
+    "title": "T-087: RTX 3060 12GB Install on pai",
+    "column": "DONE",
+    "agent": "bill (physical install by Jonathan)",
+    "tags": "",
+    "priority": "medium",
+    "description": "Install MSI RTX 3060 12GB into pai. Second GPU alongside RTX 3070 Ti. Combined VRAM: 20GB. Enables 30B+ models fully on GPU, unblocks qwen2.5:14b for crons."
+  },
+  {
+    "id": 79,
+    "title": "T-088: 8TB HDD Install on pai",
+    "column": "DONE",
+    "agent": "bill (physical install by Jonathan)",
+    "tags": "",
+    "priority": "medium",
+    "description": "Install 2x 4TB HDDs into pai for data lake expansion."
+  },
+  {
+    "id": 80,
+    "title": "T-091: pai Model Evaluation + Cron Migration \u2014 DONE \u2705",
+    "column": "DONE",
+    "agent": "bill (subagent: pai-model-migration)",
+    "tags": "",
+    "priority": "medium",
+    "description": "Evaluate new models for pai (20GB VRAM). Pull approved models, benchmark, migrate crons cloud\u2192local."
+  },
+  {
+    "id": 81,
+    "title": "T-089: Twitter API Usage Tracking",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Central usage log at ops/twitter-api-usage.json. All agents report Twitter API calls. Monitor daily burn vs 100K/month allotment."
+  },
+  {
+    "id": 82,
+    "title": "T-090: Decision Tracker \u2014 Cross-Channel Task Logging",
+    "column": "BLOCKED",
+    "agent": "bill \u2192 Forge CAUTION (2026-02-28, forge-decision-tracker-architecture + forge-t090-implementation)",
+    "tags": "",
+    "priority": "medium",
+    "description": "Four components: (1) WORKFLOW_AUTO.md session rule, (2) !task bot command + auto-detect, (3) ops-orchestrator queue processing, (4) Truth queue validation"
+  },
+  {
+    "id": 83,
+    "title": "T-086: Trader Monitor Rebuild \u2014 Option 2 \u2192 Option 4",
+    "column": "IN PROGRESS",
+    "agent": "shark \u2192 Forge review completed",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 84,
+    "title": "T-098: RTX 3060 12GB Install on pai \u2014 DONE \u2705 [duplicate removed]",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 85,
+    "title": "T-099: 8TB HDD Install on pai \u2014 DONE \u2705 [duplicate removed]",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 86,
+    "title": "T-100: Twitter API Usage Tracking \u2014 see entry above",
+    "column": "IN PROGRESS",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 87,
+    "title": "T-083: Fix Cron Delivery Failures \u2014 ops-orchestrator + overnight jobs",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Three crons failing on delivery, not execution:"
+  },
+  {
+    "id": 88,
+    "title": "T-097: Forge Cross-Model Code Review Step",
+    "column": "IN PROGRESS",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Add mandatory cross-model code review to Forge process. When Forge encounters code, it spawns a second model to independently review it before grading. Pairing rules: (1) Default: Codex reviews all code. (2) If Codex wrote the code: MiniMax M2.5 for simple/content/pipeline, Sonnet for complex/security/financial/architecture. Forge incorporates reviewer findings into final grade."
+  },
+  {
+    "id": 89,
+    "title": "T-084: Gateway Label Cleanup \u2014 ai.openclaw.gateway",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Two gateway service registrations exist. Gateway is functional and persistent, but under the wrong label:"
+  },
+  {
+    "id": 90,
+    "title": "T-082: SENTINEL Refactor \u2014 Forge Review (Retroactive) \u2705",
+    "column": "DONE",
+    "agent": "bill \u2192 Forge",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 91,
+    "title": "T-081: Diagnose DeepSeek Timeout in OpenClaw Cron Context",
+    "column": "DONE",
+    "agent": "bill \u2192 ops",
+    "tags": "",
+    "priority": "medium",
+    "description": "DeepSeek API responds instantly via direct curl (`curl api.deepseek.com` \u2192 \"OK\" in <5s) but consistently times out (600s+) when used as a cron model inside OpenClaw isolated sessions. Same prompts on xAI Grok complete in 10-20s. Root cause unknown."
+  },
+  {
+    "id": 92,
+    "title": "T-004: Trader Watch \u2014 CLOSED, superseded by T-086",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 93,
+    "title": "T-057: Trending Feedback Loop \u2014 Content Pipeline Integration",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Log Jonathan's \ud83d\udc4d/\u274c/\ud83d\udcac reactions in `memory/trending-feedback.md`. Use feedback to prioritize future topic surfacing. Weekly review: what converts to content?"
+  },
+  {
+    "id": 94,
+    "title": "T-060: Trader Watch Decision \u2014 DONE \u2705",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 95,
+    "title": "T-071: SENTINEL \u2014 Model Router Agent Build + Deploy",
+    "column": "DONE",
+    "agent": "bill \u2192 Forge required",
+    "tags": "",
+    "priority": "medium",
+    "description": "Autonomous model routing agent. Monitors API usage, auto-reassigns models before limits hit, daily report to #command-center, monthly ROI analysis. Soul at `agents/sentinel-prompt.md`."
+  },
+  {
+    "id": 96,
+    "title": "T-074: Cron Job Model Reallocation",
+    "column": "DONE",
+    "agent": "bill \u2192 Forge required",
+    "tags": "",
+    "priority": "medium",
+    "description": "Phase 2 after 24h monitoring of Discord channel changes. Migrate remaining crons off GPT \u2192 DeepSeek/MiniMax/Ollama. ops-orchestrator stays on DeepSeek (context window)."
+  },
+  {
+    "id": 97,
+    "title": "T-078: ACE App MVP \u2014 Real Vitruvian Connection",
+    "column": "DONE",
+    "agent": "bill \u2192 vitruviano-pm",
+    "tags": "",
+    "priority": "medium",
+    "description": "Build MVP with real Vitruvian BLE connection, day-based workout routing, onboarding flow, data export."
+  },
+  {
+    "id": 98,
+    "title": "T-061: SharkTime \u2014 Data Pipeline Setup",
+    "column": "DONE",
+    "agent": "shark",
+    "tags": "",
+    "priority": "medium",
+    "description": "Data pipelines for backtesting. Yahoo Finance (equities), CCXT/OKX (crypto), Twelve Data (intraday). **Architecture issue:** currently on Mac mini \u2014 must migrate to pai (T-069)."
+  },
+  {
+    "id": 99,
+    "title": "T-062: SharkTime \u2014 Backtesting Engine",
+    "column": "DONE",
+    "agent": "shark",
+    "tags": "",
+    "priority": "medium",
+    "description": "Modular backtesting engine for 7 ICT patterns (Weekly MSB, WOB Tap, PO3 AMD, 3D CHoCH, Daily FVG, Liquidity Sweep+MSS, Breaker Block). All timeframe stacks."
+  },
+  {
+    "id": 100,
+    "title": "T-064: SharkTime \u2014 Mission Control Integration",
+    "column": "DONE",
+    "agent": "quill",
+    "tags": "",
+    "priority": "medium",
+    "description": "`/sharktime` page in MC. Signal tracking DB schema, real-time dashboard, Telegram channel \"SharkTime\" setup."
+  },
+  {
+    "id": 101,
+    "title": "T-065: SharkTime \u2014 BTC Comprehensive Backtesting",
+    "column": "DONE",
+    "agent": "shark",
+    "tags": "",
+    "priority": "medium",
+    "description": "Exhaustive BTC backtesting of all 7 patterns \u00d7 3 timeframe stacks. Win rate, R:R, hold time, profit factor, max drawdown."
+  },
+  {
+    "id": 102,
+    "title": "T-066: SharkTime \u2014 Equities Validation",
+    "column": "DONE",
+    "agent": "shark",
+    "tags": "",
+    "priority": "medium",
+    "description": "Apply BTC learnings to SPY, QQQ, NVDA, TSLA, MSFT. Test pattern transferability."
+  },
+  {
+    "id": 103,
+    "title": "T-067: SharkTime \u2014 System Synthesis + Recommendations",
+    "column": "DONE",
+    "agent": "shark",
+    "tags": "",
+    "priority": "medium",
+    "description": "Pattern performance rankings, timeframe recommendations, position sizing, trading style adjustments, implementation roadmap."
+  },
+  {
+    "id": 104,
+    "title": "T-068: SharkTime \u2014 Production System Build",
+    "column": "DONE",
+    "agent": "codex + shark",
+    "tags": "",
+    "priority": "medium",
+    "description": "Extended ICT Scanner v2 (multi-timeframe), signal tracking DB, Telegram alerts, MC /sharktime page, paper trading execution."
+  },
+  {
+    "id": 105,
+    "title": "T-069: SharkTime \u2014 pai Backtesting Infrastructure",
+    "column": "DONE",
+    "agent": "ops \u2192 shark",
+    "tags": "",
+    "priority": "medium",
+    "description": "Fix architecture \u2014 SharkTime must run on pai, not Mac mini. Enhance market-collector to collect OHLCV (1h/4h/1d for BTC/ETH/SOL). Add OHLCV endpoints to market data API (:8500). Parquet format, retention policies, nighttime scheduling (10pm\u20136am CST). Storage safety: alert at 70%/80%/90%, hard stop <50GB free."
+  },
+  {
+    "id": 106,
+    "title": "T-079: SharkTime \u2014 Paper Trading + Validation (2 weeks)",
+    "column": "IN PROGRESS",
+    "agent": "shark \u2192 ops (monitoring)",
+    "tags": "",
+    "priority": "medium",
+    "description": "2-week forward paper trading validation. Track performance, refine parameters. Success: 60%+ win rate, 1:3+ R:R. Go/No-Go decision before live trading."
+  },
+  {
+    "id": 107,
+    "title": "T-024: pai HDD Expansion \u2014 DONE \u2705",
+    "column": "DONE",
+    "agent": "",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 108,
+    "title": "T-025: NAS Backup Migration",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Set up Time Machine backup to external drive attached to Mac mini"
+  },
+  {
+    "id": 109,
+    "title": "T-026: GitHub \u2014 \"Bills Temple of Boom\" Private Repo",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Create private GitHub repo for Bill's projects and workspace"
+  },
+  {
+    "id": 110,
+    "title": "T-027: Phoenix New Lead Gen Source",
+    "column": "BLOCKED",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 111,
+    "title": "T-096: Documentation Cleanup \u2014 Stale/Orphaned Info Fix",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Fix stale/outdated information identified by SENTINEL's March 1 report:"
+  },
+  {
+    "id": 112,
+    "title": "T-103: Implement OpenClaw Memory Upgrades (Mem0 + SQLite)",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Implement methods 3 + 4 from https://youtu.be/Nt03hgxv5TE"
+  },
+  {
+    "id": 113,
+    "title": "T-102: Model Assignment \u2014 Shark, Scout & All 27 Unset Crons",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "27 crons have no model set \u2192 defaulting to Claude Sonnet \u2192 burns Claude Max quota. Must assign explicit models to all. Shark/Scout can use Sonnet (subscription) but ALL crons must use cheap models (Ollama/xAI/MiniMax)."
+  },
+  {
+    "id": 114,
+    "title": "T-097: Test SENTINEL Documentation Fix",
+    "column": "IN PROGRESS",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Test that SENTINEL now creates tasks when finding stale documentation. Updated sentinel-prompt.md with:"
+  },
+  {
+    "id": 115,
+    "title": "T-106: Wire Up Free Public APIs \u2014 AlphaVantage, NewsAPI, Wger, USDA FoodData",
+    "column": "DONE",
+    "agent": "bill (subagent t106-public-apis-wire)",
+    "tags": "",
+    "priority": "medium",
+    "description": "Wire up 4 free public APIs and write helper scripts for each."
+  },
+  {
+    "id": 116,
+    "title": "T-104: Gateway Watchdog \u2014 Auto-restart on stale Discord WebSocket",
+    "column": "DONE",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": "Build a watchdog that detects when Discord sessions go stale and auto-restarts the gateway cleanly. Jonathan keeps having to manually intervene."
+  },
+  {
+    "id": 117,
+    "title": "T-110: Jonathan OS \u2014 Productize + Anonymize System for GitHub",
+    "column": "IN PROGRESS",
+    "agent": "bob",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 118,
+    "title": "T-111: Goal Context + Goal-First Reporting",
+    "column": "IN PROGRESS",
+    "agent": "bill",
+    "tags": "",
+    "priority": "medium",
+    "description": ""
+  },
+  {
+    "id": 120,
+    "title": "Videri Digital Display \u2014 Define project scope and deliverables",
+    "column": "INBOX",
+    "agent": "Scout",
+    "tags": "videri,hardware,planning",
+    "priority": "medium",
+    "description": "Define Videri project scope, success criteria, and deliverables for execution planning."
+  },
+  {
+    "id": 121,
+    "title": "Phoenix: Quarterly client review deck prep (Benqi, Pharaoh, ME, Bullet, ProRata)",
+    "column": "IN PROGRESS",
+    "agent": "sam",
+    "tags": "phoenix,p1",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 122,
+    "title": "Phoenix: Update case studies with 2026 Q1 results",
+    "column": "INBOX",
+    "agent": "scrub",
+    "tags": "phoenix,content",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 123,
+    "title": "AUREA: BLE protocol integration \u2014 connect Vitruvian Trainer+ to app",
+    "column": "INBOX",
+    "agent": "bob",
+    "tags": "aurea,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 124,
+    "title": "AUREA: Design onboarding flow \u2014 user profile, goals, equipment",
+    "column": "INBOX",
+    "agent": "pixel",
+    "tags": "aurea,design",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 125,
+    "title": "AUREA: Build FastAPI backend \u2014 user auth, workout CRUD, progress tracking",
+    "column": "INBOX",
+    "agent": "bob",
+    "tags": "aurea,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 126,
+    "title": "AUREA: Free vs Pro tier feature matrix \u2014 define what's gated",
+    "column": "INBOX",
+    "agent": "bill",
+    "tags": "aurea,strategy",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 127,
+    "title": "Content: Build Quill voice model (T-114) \u2014 LinkedIn post by Mar 10",
+    "column": "IN PROGRESS",
+    "agent": "quill",
+    "tags": "content,voice",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 128,
+    "title": "Content: Establish weekly content cadence \u2014 2 LinkedIn, 3 tweets/wk",
+    "column": "INBOX",
+    "agent": "content-pm",
+    "tags": "content,cadence",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 129,
+    "title": "Content: Pixel visual templates \u2014 LinkedIn carousel, tweet graphics",
+    "column": "INBOX",
+    "agent": "pixel",
+    "tags": "content,design",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 130,
+    "title": "Music Biz: Prospect 5 regional upscale casual chains (5-30 locations)",
+    "column": "INBOX",
+    "agent": "music-biz",
+    "tags": "music,growth",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 131,
+    "title": "Music Biz: Build reusable pitch deck for restaurant prospects",
+    "column": "INBOX",
+    "agent": "pixel",
+    "tags": "music,sales",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 132,
+    "title": "AgentOS: Define MVP scope \u2014 what's the product, who's the customer",
+    "column": "INBOX",
+    "agent": "bill",
+    "tags": "agentOS,strategy",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 133,
+    "title": "AgentOS: Competitive landscape \u2014 research existing agent platforms",
+    "column": "INBOX",
+    "agent": "scout",
+    "tags": "agentOS,research",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 134,
+    "title": "Council: Design idea submission \u2192 deliberation \u2192 approval workflow",
+    "column": "INBOX",
+    "agent": "bill",
+    "tags": "council,design",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 135,
+    "title": "Council: Build council voting API endpoint in MC",
+    "column": "INBOX",
+    "agent": "bob",
+    "tags": "council,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 136,
+    "title": "Emma: Complete Gmail setup (stuck at QR verification)",
+    "column": "BLOCKED",
+    "agent": "bill",
+    "tags": "emma,infra",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 137,
+    "title": "Emma: Set up launchd auto-start on boot",
+    "column": "INBOX",
+    "agent": "bill",
+    "tags": "emma,infra",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 138,
+    "title": "YouTube: Define agent scope \u2014 research, thumbnails, scripts, scheduling",
+    "column": "INBOX",
+    "agent": "bill",
+    "tags": "youtube,planning",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 139,
+    "title": "YouTube: Competitor thumbnail scraper (T-099)",
+    "column": "INBOX",
+    "agent": "scout",
+    "tags": "youtube,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 140,
+    "title": "Trader Monitor: Style classification model for Twitter signals",
+    "column": "INBOX",
+    "agent": "shark",
+    "tags": "trading,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 141,
+    "title": "Trader Monitor: Build signal ingestion from Mandelbrot + fejau feeds",
+    "column": "INBOX",
+    "agent": "shark",
+    "tags": "trading,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 142,
+    "title": "Outbound: Define ICP (ideal client profile) for web3 prospects",
+    "column": "INBOX",
+    "agent": "scout",
+    "tags": "outbound,research",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 143,
+    "title": "Outbound: Build automated LinkedIn/Twitter research pipeline",
+    "column": "INBOX",
+    "agent": "scout",
+    "tags": "outbound,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 144,
+    "title": "Outbound: Draft outreach templates for Alex to review",
+    "column": "INBOX",
+    "agent": "sam",
+    "tags": "outbound,content",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 145,
+    "title": "Health: Fix Withings OAuth token exchange (nonce/signature issue)",
+    "column": "BLOCKED",
+    "agent": "bill",
+    "tags": "health,api",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 146,
+    "title": "Health: Fix Oura OAuth (invalid request \u2014 app activation issue)",
+    "column": "BLOCKED",
+    "agent": "bill",
+    "tags": "health,api",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 147,
+    "title": "Health: Build morning health brief \u2014 weight, sleep, HRV, readiness",
+    "column": "INBOX",
+    "agent": "ace",
+    "tags": "health,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 148,
+    "title": "SENTINEL: Build Claude usage browser scrape cron",
+    "column": "INBOX",
+    "agent": "bob",
+    "tags": "sentinel,dev",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 149,
+    "title": "SENTINEL: Monthly ROI report automation",
+    "column": "IN PROGRESS",
+    "agent": "ops",
+    "tags": "sentinel,reporting",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 150,
+    "title": "pai: Install RTX 3060 12GB (T-087) \u2014 cable ordered",
+    "column": "BLOCKED",
+    "agent": "bill",
+    "tags": "pai,hardware",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 151,
+    "title": "pai: Install 8TB HDD (T-088) \u2014 cable ordered",
+    "column": "BLOCKED",
+    "agent": "bill",
+    "tags": "pai,hardware",
+    "priority": "P2",
+    "description": ""
+  },
+  {
+    "id": 152,
+    "title": "Scout: Add automated competitor intel drops to #competitive-intel",
+    "column": "IN PROGRESS",
+    "agent": "scout",
+    "tags": "research,automation",
+    "priority": "P2",
+    "description": ""
+  }
+]
