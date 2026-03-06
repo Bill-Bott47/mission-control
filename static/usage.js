@@ -47,31 +47,41 @@ const renderMinimax = (payload) => {
     return;
   }
 
-  const models = payload.models || [];
-  minimaxMeta.textContent = payload.window_remaining || 'Rolling window';
+  const codingPlan = payload.coding_plan || payload; // backward compatible
+  const models = codingPlan?.models || [];
+  const payg = payload.payg || {};
+
+  minimaxMeta.textContent = codingPlan?.window_remaining || 'Rolling window';
+
+  const paygLine = payg.configured
+    ? `<div class="minimax-payg">PAYG: configured (overflow enabled). <span class="subtle">${payg.note || ''}</span></div>`
+    : `<div class="minimax-payg">PAYG: not configured.</div>`;
 
   if (!models.length) {
-    minimaxBody.textContent = 'No usage details returned.';
+    minimaxBody.innerHTML = `${paygLine}<div class="subtle">No coding plan usage details returned.</div>`;
     return;
   }
 
-  minimaxBody.innerHTML = models.map((model) => {
-    const used = Number(model.used || 0);
-    const total = Number(model.total || 0);
-    const remaining = Number(model.remaining || 0);
-    const pct = total ? Math.min(100, Math.round((used / total) * 100)) : 0;
+  minimaxBody.innerHTML = [
+    paygLine,
+    ...models.map((model) => {
+      const used = Number(model.used || 0);
+      const total = Number(model.total || 0);
+      const remaining = Number(model.remaining || 0);
+      const pct = total ? Math.min(100, Math.round((used / total) * 100)) : 0;
 
-    return `
-      <div class="minimax-row">
-        <div class="minimax-row-header">
-          <strong>${model.name || 'Model'}</strong>
-          <span>${pct}%</span>
+      return `
+        <div class="minimax-row">
+          <div class="minimax-row-header">
+            <strong>${model.name || 'Model'}</strong>
+            <span>${pct}%</span>
+          </div>
+          <div class="progress-bar"><span style="width:${pct}%"></span></div>
+          <div class="minimax-foot">${used.toLocaleString()} used / ${total.toLocaleString()} total • ${remaining.toLocaleString()} remaining</div>
         </div>
-        <div class="progress-bar"><span style="width:${pct}%"></span></div>
-        <div class="minimax-foot">${used.toLocaleString()} used / ${total.toLocaleString()} total • ${remaining.toLocaleString()} remaining</div>
-      </div>
-    `;
-  }).join('');
+      `;
+    })
+  ].join('');
 };
 
 const renderChannels = (channels) => {

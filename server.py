@@ -19,6 +19,35 @@ import requests
 import re
 from urllib.parse import quote
 
+
+def _load_env_file(path: str) -> None:
+    """Tiny .env loader (no external deps).
+
+    - Only sets keys that are not already present in os.environ.
+    - Supports simple KEY=VALUE lines; ignores comments and blanks.
+    - Strips surrounding single/double quotes.
+    """
+    try:
+        p = Path(path)
+        if not p.exists():
+            return
+        for raw_line in p.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except Exception:
+        # Non-fatal: Mission Control should still boot.
+        return
+
+
+# Load workspace-wide .env so Mission Control can access provider keys.
+_load_env_file("/Users/bill/.openclaw/workspace/.env")
+
 app = Flask(__name__)
 
 # Configuration
@@ -2374,18 +2403,53 @@ def api_usage_providers():
 
 @app.route('/api/usage/minimax')
 def api_usage_minimax():
+    """Return MiniMax quota info.
+
+    Notes:
+    - Coding Plan (sk-cp-*) exposes a rolling-window quota endpoint (remains).
+    - PAYG (sk-api-*) does not appear to expose a public balance/usage endpoint we can poll
+      reliably (as of 2026-03). We still surface whether the key is configured.
+
+    Security:
+    - Never hardcode API keys in repo code. Read from env.
+    """
+    cp_key = os.environ.get("MINIMAX_CP_KEY")
+    payg_key = os.environ.get("MINIMAX_PAYG_KEY") or os.environ.get("MINIMAX_API_KEY")
+
+    if not cp_key:
+        return jsonify({
+            "error": "MINIMAX_CP_KEY not configured",
+            "coding_plan": None,
+            "payg": {"configured": bool(payg_key)},
+        }), 500
+
     url = "https://www.minimax.io/v1/api/openplatform/coding_plan/remains"
-    headers = {
-        "Authorization": "Bearer sk-cp-phOTlbIwOqTPdFPSd-PgVwGCBLscqx4HJEayW0b_J2g_snpcnApkzcMJLo8gRYo_ykF1_gNw5EpIOFywa19jtkt2UmR4SYm91QZFsd9qy7SQcrWNfHdWbfg"
-    }
+    headers = {"Authorization": f"Bearer {cp_key}"}
+
     try:
         resp = requests.get(url, headers=headers, timeout=12)
         if resp.status_code != 200:
-            return jsonify({"error": f"MiniMax API error {resp.status_code}", "details": resp.text[:200]}), 502
+            return jsonify({
+                "error": f"MiniMax API error {resp.status_code}",
+                "details": resp.text[:200],
+                "coding_plan": None,
+                "payg": {"configured": bool(payg_key)},
+            }), 502
         payload = resp.json()
-        return jsonify(_normalize_minimax_usage(payload))
+        normalized = _normalize_minimax_usage(payload)
+        return jsonify({
+            "coding_plan": normalized,
+            "payg": {
+                "configured": bool(payg_key),
+                "note": "PAYG spend/balance endpoint not available via public API; add OpenClaw-level metering to track overflow.",
+            },
+        })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e),
+            "coding_plan": None,
+            "payg": {"configured": bool(payg_key)},
+        }), 500
 
 
 @app.route('/api/usage/channels')
