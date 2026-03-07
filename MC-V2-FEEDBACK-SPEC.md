@@ -1,4 +1,4 @@
-# Mission Control v2 — Feedback Spec
+# JonathanOS v2 — Feedback Spec
 **Source:** Jonathan's voice review, 2026-03-05 1:49-2:04 PM
 **Priority:** P1 — Wire up and fix before next review
 

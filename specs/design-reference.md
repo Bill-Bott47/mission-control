@@ -1,4 +1,4 @@
-# Design Reference — Alex Finn's Mission Control
+# Design Reference — Alex Finn's JonathanOS
 
 ## Color Palette (EXACT — match these)
 - **App background**: `#0D0D0F` to `#141420` (deep black/charcoal)

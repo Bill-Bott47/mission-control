@@ -1,31 +1,29 @@
 {% extends "base.html" %}
-{% block title %}Office — Mission Control{% endblock %}
+{% block title %}Office — JonathanOS{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='office.css') }}">
+<style>
+    .office-frame-wrap {
+        width: 100%;
+        height: calc(100vh - 120px);
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.08);
+        background: #1a1a2e;
+    }
+    .office-frame-wrap iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+</style>
 {% endblock %}
 {% block content %}
 <header class="page-header">
     <h1>Office</h1>
-    <div class="subtle">Virtual workspace — coming soon</div>
+    <div class="subtle">Live agent workspace — who's doing what, right now</div>
 </header>
 
-<div class="office-stage">
-    <div class="pixel-city">
-        <div class="pixel-row">
-            <span class="px b1"></span><span class="px b1"></span><span class="px b2"></span><span class="px b3"></span><span class="px b3"></span>
-        </div>
-        <div class="pixel-row">
-            <span class="px b2"></span><span class="px b2"></span><span class="px b3"></span><span class="px b4"></span><span class="px b4"></span>
-        </div>
-        <div class="pixel-row">
-            <span class="px b3"></span><span class="px b4"></span><span class="px b4"></span><span class="px b5"></span><span class="px b5"></span>
-        </div>
-    </div>
-    <div class="office-desk">
-        <span class="desk-item lamp"></span>
-        <span class="desk-item mug"></span>
-        <span class="desk-item plant"></span>
-    </div>
-    <div class="office-label">Pixel’s corner: tiny city, warm coffee, and one overworked lamp</div>
+<div class="office-frame-wrap">
+    <iframe src="http://127.0.0.1:19000" title="Star Office"></iframe>
 </div>
 {% endblock %}

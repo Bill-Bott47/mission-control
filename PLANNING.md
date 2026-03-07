@@ -1,4 +1,4 @@
-# Mission Control — Planning Doc
+# JonathanOS — Planning Doc
 
 ## Vision
 A single dashboard for Jonathan to see everything at a glance — agency, trading, bots, health, family, todos. Desktop app + web accessible remotely.

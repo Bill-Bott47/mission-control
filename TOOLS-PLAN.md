@@ -1,4 +1,4 @@
-# Mission Control — Tools Plan
+# JonathanOS — Tools Plan
 
 ## Platform
 - Next.js 14 (App Router)

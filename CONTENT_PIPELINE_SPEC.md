@@ -1,4 +1,4 @@
-# Content Pipeline Dashboard — Mission Control V2
+# Content Pipeline Dashboard — JonathanOS V2
 
 **Feature:** Content Pipeline View  
 **Status:** PLANNED  
@@ -9,14 +9,14 @@
 
 ## Overview
 
-Add a dedicated Content Pipeline section to Mission Control V2 that shows the real-time status of the Scrub → Quill → Pixel → Jonathan approval flow. Also integrate with Discord for approvals.
+Add a dedicated Content Pipeline section to JonathanOS V2 that shows the real-time status of the Scrub → Quill → Pixel → Jonathan approval flow. Also integrate with Discord for approvals.
 
 ---
 
 ## Requirements
 
 ### 1. MC V2 Dashboard View
-- **New tab/section** in Mission Control dashboard
+- **New tab/section** in JonathanOS dashboard
 - **Pipeline stages:**
   - 🔍 **Trending** (Scrub) — content found, awaiting research
   - 📝 **Research** (Quill) — researched, awaiting script

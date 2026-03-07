@@ -1,4 +1,4 @@
-# Mission Control v1 🎯
+# JonathanOS v1 🎯
 
 A simple, dark-mode dashboard that shows Jonathan everything at a glance.
 
@@ -72,7 +72,7 @@ New SQLite-backed message event API:
 - `POST /api/message-events` creates an event
 - `GET /api/message-events?limit=100&level=&source=&channel=&kind=` lists newest first
 - `GET /api/messages/timeline?limit=200&channel=&agent=&level=&delivery_status=` unified DB + log timeline
-- `GET /api/messages/status-post?entry=<timeline_id>` generates status-only post text with Mission Control link
+- `GET /api/messages/status-post?entry=<timeline_id>` generates status-only post text with JonathanOS link
 
 Example create request:
 

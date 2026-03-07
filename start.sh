@@ -1,7 +1,10 @@
 #!/bin/bash
-# Mission Control v1 Launch Script
+# JonathanOS v2 Launch Script
 
 cd "$(dirname "$0")"
+
+# Ensure node/openclaw are in PATH for launchd environments
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
@@ -17,6 +20,6 @@ echo "Installing dependencies..."
 pip install -r requirements.txt
 
 # Start the server
-echo "Starting Mission Control v1..."
+echo "Starting JonathanOS v1..."
 echo "Dashboard available at: http://localhost:8888"
 python server.py

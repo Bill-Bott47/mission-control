@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Mission Control v1 - Dashboard for Jonathan
+JonathanOS - Dashboard for Jonathan
 Simple Flask server serving a real-time dashboard
 """
 
@@ -41,7 +41,7 @@ def _load_env_file(path: str) -> None:
             if key and key not in os.environ:
                 os.environ[key] = value
     except Exception:
-        # Non-fatal: Mission Control should still boot.
+        # Non-fatal: JonathanOS should still boot.
         return
 
 
@@ -928,7 +928,7 @@ def parse_infrastructure_md():
             "mac-mini": {
                 "name": "Mac Mini",
                 "role": "Orchestration, messaging, browser automation",
-                "services": ["OpenClaw Gateway", "Mission Control", "Managed Browser", "BlueBubbles"],
+                "services": ["OpenClaw Gateway", "JonathanOS", "Managed Browser", "BlueBubbles"],
                 "status": "up"  # Always up if we're serving this
             },
             "phoenix-ai": {
@@ -1178,7 +1178,7 @@ TEAM_SOUL_EXCERPTS = {
 
 
 def _load_team_roster():
-    """Hardcoded roster for Mission Control v2."""
+    """Hardcoded roster for JonathanOS."""
     agents = [agent.copy() for agent in TEAM_FALLBACK]
     return agents
 
@@ -3010,7 +3010,7 @@ def api_message_events_create():
         )
         entry_id = f"db:{event['id']}"
         mission_control_url = f"{request.host_url.rstrip('/')}/messages?entry={entry_id}"
-        status_only_text = f"See details in Mission Control: {mission_control_url}"
+        status_only_text = f"See details in JonathanOS: {mission_control_url}"
         return jsonify({
             "event": event,
             "body_was_truncated": body_was_truncated,
@@ -3139,7 +3139,7 @@ def api_messages_timeline():
 def api_messages_status_post():
     """
     Build status-only post text for Discord/Telegram:
-    "See details in Mission Control: <link>"
+    "See details in JonathanOS: <link>"
     """
     entry_id = request.args.get('entry', '').strip()
     host_url = request.host_url.rstrip('/')
@@ -3184,7 +3184,7 @@ def api_messages_status_post():
 
     target = target or {"mc_path": "/messages"}
     mc_url = f"{host_url}{target['mc_path']}"
-    text = f"See details in Mission Control: {mc_url}"
+    text = f"See details in JonathanOS: {mc_url}"
     return jsonify({
         "entry": target.get("id"),
         "status_only_text": text,
@@ -3609,7 +3609,7 @@ def api_kanban_ai_plan():
     if not title:
         return jsonify({"error": "title required"}), 400
 
-    prompt = f"""You are an AI task planner for Mission Control. Analyze this task and provide:
+    prompt = f"""You are an AI task planner for JonathanOS. Analyze this task and provide:
 1. Clarifying questions (2-3 max)
 2. Recommended assigned agent (from: Bill/main, Scout, Shark, Quill, Pixel, ACE)
 3. Suggested priority (low/medium/high/urgent)
@@ -3868,7 +3868,7 @@ def api_kanban_columns():
 
 if __name__ == '__main__':
     port = 8889
-    print("Starting Mission Control v2...")
+    print("Starting JonathanOS...")
     _ensure_message_center_db()
     init_kanban_db()
     init_approvals_db()
