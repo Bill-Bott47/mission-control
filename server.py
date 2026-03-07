@@ -14,7 +14,7 @@ import psutil
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request, redirect
+from flask import Flask, render_template, jsonify, request, redirect, session
 import requests
 import re
 from urllib.parse import quote
@@ -49,6 +49,7 @@ def _load_env_file(path: str) -> None:
 _load_env_file("/Users/bill/.openclaw/workspace/.env")
 
 app = Flask(__name__)
+app.secret_key = 'jos-star-office-2026'
 
 # Configuration
 GATEWAY_TOKEN = "2306cfed437022f822d3830b3347fc2ab154abc32a3f0e03"
@@ -3874,6 +3875,169 @@ def api_trading_signals_db():
 def api_kanban_columns():
     return jsonify(KANBAN_COLUMNS)
 
+
+# ─── Star Office API routes ─────────────────────────────────────────────────
+import glob
+
+_OFFICE_STATE_FILE = os.path.join(os.path.dirname(__file__), 'star_office_state.json')
+_OFFICE_GUESTS_FILE = os.path.join(os.path.dirname(__file__), 'star_office_guests.json')
+_OFFICE_PASS = '1234'  # default passcode for Decorate Room
+
+def _load_office_state():
+    try:
+        with open(_OFFICE_STATE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {'state': 'idle', 'detail': 'Ready'}
+
+def _save_office_state(data):
+    with open(_OFFICE_STATE_FILE, 'w') as f:
+        json.dump(data, f)
+
+def _load_office_guests():
+    try:
+        with open(_OFFICE_GUESTS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _save_office_guests(guests):
+    with open(_OFFICE_GUESTS_FILE, 'w') as f:
+        json.dump(guests, f)
+
+@app.route('/status')
+def office_status():
+    """Star Office status endpoint."""
+    return jsonify(_load_office_state())
+
+@app.route('/set_state', methods=['POST'])
+def office_set_state():
+    data = request.get_json(silent=True) or {}
+    state = data.get('state', 'idle')
+    detail = data.get('detail', '')
+    _save_office_state({'state': state, 'detail': detail})
+    return jsonify({'ok': True})
+
+@app.route('/office-agents')
+def office_agents_list():
+    """Return JSON guest list for Star Office."""
+    return jsonify(_load_office_guests())
+
+@app.route('/join-agent', methods=['POST'])
+def office_join_agent():
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    join_key = data.get('joinKey', '').strip()
+    if not name or not join_key:
+        return jsonify({'ok': False, 'msg': 'name and joinKey required'})
+    guests = _load_office_guests()
+    agent_id = f"guest_{name.lower().replace(' ', '_')}_{int(time.time())}"
+    guests.append({'agentId': agent_id, 'name': name, 'authStatus': 'approved', 'state': 'idle', 'detail': ''})
+    _save_office_guests(guests)
+    return jsonify({'ok': True, 'agentId': agent_id})
+
+@app.route('/leave-agent', methods=['POST'])
+def office_leave_agent():
+    data = request.get_json(silent=True) or {}
+    agent_id = data.get('agentId', '')
+    name = data.get('name', '')
+    guests = _load_office_guests()
+    guests = [g for g in guests if g.get('agentId') != agent_id and g.get('name') != name]
+    _save_office_guests(guests)
+    return jsonify({'ok': True})
+
+@app.route('/agent-push', methods=['POST'])
+def office_agent_push():
+    data = request.get_json(silent=True) or {}
+    agent_id = data.get('agentId', '')
+    guests = _load_office_guests()
+    for g in guests:
+        if g.get('agentId') == agent_id:
+            g.update({k: v for k, v in data.items() if k in ('state', 'detail', 'bubbleText')})
+    _save_office_guests(guests)
+    return jsonify({'ok': True})
+
+@app.route('/agent-approve', methods=['POST'])
+def office_agent_approve():
+    data = request.get_json(silent=True) or {}
+    agent_id = data.get('agentId', '')
+    guests = _load_office_guests()
+    for g in guests:
+        if g.get('agentId') == agent_id:
+            g['authStatus'] = 'approved'
+    _save_office_guests(guests)
+    return jsonify({'ok': True})
+
+@app.route('/agent-reject', methods=['POST'])
+def office_agent_reject():
+    data = request.get_json(silent=True) or {}
+    agent_id = data.get('agentId', '')
+    guests = _load_office_guests()
+    for g in guests:
+        if g.get('agentId') == agent_id:
+            g['authStatus'] = 'rejected'
+    _save_office_guests(guests)
+    return jsonify({'ok': True})
+
+@app.route('/assets/auth', methods=['POST'])
+def office_assets_auth():
+    data = request.get_json(silent=True) or {}
+    pw = data.get('password', '')
+    if pw == _OFFICE_PASS:
+        session['office_authed'] = True
+        return jsonify({'ok': True})
+    return jsonify({'ok': False, 'msg': 'Wrong passcode'})
+
+@app.route('/assets/auth/status')
+def office_assets_auth_status():
+    return jsonify({'ok': True, 'authed': session.get('office_authed', False)})
+
+@app.route('/assets/list')
+def office_assets_list():
+    if not session.get('office_authed'):
+        return jsonify({'ok': False, 'msg': 'Not authenticated'}), 401
+    star_dir = os.path.join(os.path.dirname(__file__), 'static', 'star-office')
+    items = []
+    for ext in ('*.webp', '*.png', '*.jpg', '*.jpeg', '*.gif', '*.svg'):
+        for fpath in glob.glob(os.path.join(star_dir, ext)):
+            fname = os.path.basename(fpath)
+            stat = os.stat(fpath)
+            items.append({'path': fname, 'ext': fname.rsplit('.', 1)[-1], 'size': stat.st_size, 'width': None, 'height': None})
+    return jsonify({'ok': True, 'items': items})
+
+@app.route('/assets/positions')
+def office_assets_positions():
+    if not session.get('office_authed'):
+        return jsonify({'ok': False, 'msg': 'Not authenticated'}), 401
+    return jsonify({'ok': True, 'items': {}})
+
+@app.route('/assets/defaults')
+def office_assets_defaults():
+    return jsonify({'ok': True, 'items': {}})
+
+@app.route('/config/gemini')
+def office_config_gemini_get():
+    return jsonify({'ok': True, 'has_api_key': False, 'gemini_model': 'gemini-flash'})
+
+@app.route('/config/gemini', methods=['POST'])
+def office_config_gemini_post():
+    return jsonify({'ok': True})
+
+@app.route('/yesterday-memo')
+def office_yesterday_memo():
+    """Return yesterday's memory note for the star office memo panel."""
+    try:
+        from datetime import datetime, timedelta
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        memo_path = os.path.join(os.path.dirname(__file__), '..', 'memory', f'{yesterday}.md')
+        if os.path.exists(memo_path):
+            with open(memo_path) as f:
+                content = f.read()[:500]
+            return jsonify({'success': True, 'memo': content, 'date': yesterday})
+    except Exception:
+        pass
+    return jsonify({'success': False})
+# ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
     port = 8889
