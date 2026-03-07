@@ -1527,7 +1527,16 @@ def council_page():
 
 @app.route('/office')
 def office_page():
-    return render_template('office.html')
+    return redirect('/office/native')
+
+
+@app.route('/office/native')
+def office_native_page():
+    return render_template(
+        'office.html',
+        VERSION_TIMESTAMP=int(time.time()),
+        STAR_OFFICE_API_BASE="http://127.0.0.1:19000",
+    )
 
 
 @app.route('/usage')
