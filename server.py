@@ -2014,98 +2014,64 @@ def _approval_status_from_reply(reply_text):
     return "pending"
 
 
-def _build_recent_activity_events(limit=20):
+def _build_recent_activity_events():
     events = []
-    cutoff = datetime.now() - timedelta(days=7)
+    repo_path = "/Users/bill/.openclaw/workspace/mission-control"
+    memory_dir = Path("/Users/bill/.openclaw/workspace/memory")
 
-    # 1) Recent git commits
+    # 1) Last 10 recent commits (past 7 days), command as requested.
     try:
         result = subprocess.run(
-            ["git", "log", "--oneline", "-10", "--since=7 days ago", "--date=iso-strict", "--pretty=format:%H|%cI|%s"],
+            ["git", "-C", repo_path, "log", "--oneline", "-10", '--since=7 days ago'],
             capture_output=True,
             text=True,
             timeout=5,
         )
         if result.returncode == 0:
-            for line in result.stdout.splitlines():
-                parts = line.split("|", 2)
-                if len(parts) != 3:
+            for raw_line in result.stdout.splitlines():
+                line = raw_line.strip()
+                if not line:
                     continue
-                sha, ts, msg = parts
+                sha = line.split(" ", 1)[0]
+                commit_time = datetime.now().isoformat()
                 try:
-                    ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                except ValueError:
-                    continue
-                if ts_dt.replace(tzinfo=None) < cutoff:
-                    continue
+                    ts_result = subprocess.run(
+                        ["git", "-C", repo_path, "show", "-s", "--format=%cI", sha],
+                        capture_output=True,
+                        text=True,
+                        timeout=3,
+                    )
+                    if ts_result.returncode == 0 and ts_result.stdout.strip():
+                        commit_time = ts_result.stdout.strip()
+                except Exception:
+                    pass
                 events.append({
-                    "timestamp": ts_dt.isoformat(),
-                    "title": msg,
-                    "description": f"Commit {sha[:7]}",
+                    "timestamp": commit_time,
                     "source": "git",
+                    "text": line,
                 })
     except Exception:
         pass
 
-    # 2) Recent cron completions from gateway
+    # 2) Last 20 lines from the most recent memory markdown file.
     try:
-        result = subprocess.run(
-            ["/opt/homebrew/bin/openclaw", "cron", "list", "--json"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            payload = json.loads(result.stdout)
-            jobs = []
-            if isinstance(payload, dict) and "jobs" in payload:
-                inner = payload["jobs"]
-                if isinstance(inner, dict):
-                    jobs = inner.get("jobs", [])
-                elif isinstance(inner, list):
-                    jobs = inner
-            elif isinstance(payload, list):
-                jobs = payload
-
-            for job in jobs:
-                state = job.get("state") or {}
-                last_run = state.get("lastRun")
-                if not last_run:
-                    continue
-                try:
-                    run_dt = datetime.fromisoformat(str(last_run).replace("Z", "+00:00"))
-                except ValueError:
-                    continue
-                if run_dt.replace(tzinfo=None) < cutoff:
-                    continue
-                events.append({
-                    "timestamp": run_dt.isoformat(),
-                    "title": "Cron completion",
-                    "description": f"{job.get('name') or job.get('id')}: {state.get('lastRunStatus') or 'unknown'}",
-                    "source": "cron",
-                })
-    except Exception:
-        pass
-
-    # 3) Memory daily file updates
-    try:
-        memory_dir = Path("/Users/bill/.openclaw/workspace/memory")
         if memory_dir.exists():
-            for path in sorted(memory_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:12]:
-                mtime = datetime.fromtimestamp(path.stat().st_mtime)
-                if mtime < cutoff:
-                    continue
-                events.append({
-                    "timestamp": mtime.isoformat(),
-                    "title": "Memory updated",
-                    "description": path.name,
-                    "source": "memory",
-                })
+            files = sorted(memory_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if files:
+                most_recent = files[0]
+                file_ts = datetime.fromtimestamp(most_recent.stat().st_mtime).isoformat()
+                lines = most_recent.read_text(encoding="utf-8", errors="ignore").splitlines()
+                for line in lines[-20:]:
+                    events.append({
+                        "timestamp": file_ts,
+                        "source": "memory",
+                        "text": line,
+                    })
     except Exception:
         pass
 
     events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
-    return events[:limit]
+    return events
 
 
 @app.route('/api/signals')
@@ -2183,7 +2149,7 @@ def api_signals():
 
 @app.route('/api/recent-activity')
 def api_recent_activity():
-    return jsonify({"items": _build_recent_activity_events(limit=30)})
+    return jsonify({"items": _build_recent_activity_events()})
 
 
 @app.route('/api/task-summary')

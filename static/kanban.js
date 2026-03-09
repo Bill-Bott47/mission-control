@@ -335,7 +335,7 @@ async function loadRecentActivity() {
   try {
     const resp = await fetch('/api/recent-activity');
     const data = await resp.json();
-    const items = data.items || data.activity || data || [];
+    const items = Array.isArray(data?.items) ? data.items : [];
 
     if (!items.length) {
       list.innerHTML = '<div style="color:var(--muted);font-size:12px">No recent activity</div>';
@@ -343,18 +343,17 @@ async function loadRecentActivity() {
     }
 
     list.innerHTML = items.map(item => {
-      const source = item.source || 'activity';
-      const color = source === 'git' ? '#3B82F6' : (source === 'cron' ? '#14B8A6' : '#7C3AED');
-      const time = item.timestamp || item.time || '';
+      const source = item.source || 'memory';
+      const color = source === 'git' ? '#3B82F6' : '#7C3AED';
+      const time = item.timestamp || '';
       const label = time ? new Date(time).toLocaleString() : '';
-      const title = item.title || 'Event';
-      const msg = item.description || item.message || item.text || '';
-      const detail = `${title}: ${msg}${label ? ` · ${label}` : ''}`;
+      const msg = item.text || '';
+      const detail = `${source}: ${msg}${label ? ` · ${label}` : ''}`;
       return `
         <div class="activity-item" title="${escAttr(detail)}">
           <span class="activity-dot" style="background:${color}"></span>
           <div class="activity-content">
-            <strong style="color:${color}">${escHtml(title)}</strong> ${escHtml(msg)}
+            <strong style="color:${color}">${escHtml(source.toUpperCase())}</strong> ${escHtml(msg)}
             ${label ? `<span class="activity-time">${escHtml(label)}</span>` : ''}
           </div>
         </div>
