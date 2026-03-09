@@ -1,15 +1,20 @@
 :root {
-  --bg: #0D0D0F;
-  --bg-panel: #141420;
-  --card: #252535;
-  --border: rgba(255,255,255,0.06);
-  --text: #F0F0F0;
-  --muted: #9999AA;
-  --muted-2: #666680;
-  --accent: #7C3AED;
-  --accent-2: #6D28D9;
+  --bg: #08080A;
+  --bg-secondary: #0F0F12;
+  --bg-panel: #0F0F12;
+  --bg-card: #16161A;
+  --bg-elevated: #222230;
+  --border-subtle: rgba(255,255,255,0.04);
+  --border-accent: rgba(201,168,76,0.2);
+  --text: #F4F4F5;
+  --text-secondary: #A1A1AA;
+  --muted: #52525B;
+  --muted-2: #3F3F46;
+  --accent: #C9A84C;
+  --accent-muted: #9A7B2F;
+  --accent-glow: rgba(201,168,76,0.15);
 
-  --col-inbox: #7C3AED;
+  --col-inbox: #C9A84C;
   --col-planning: #3B82F6;
   --col-inprogress: #F59E0B;
   --col-testing: #14B8A6;
@@ -19,12 +24,12 @@
 
   --pri-urgent: #DC2626;
   --pri-high: #D97706;
-  --pri-medium: #4F46E5;
-  --pri-low: #666680;
+  --pri-medium: #C9A84C;
+  --pri-low: #52525B;
 }
 
 .kanban-page {
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   color: var(--text);
   background: var(--bg);
   min-height: 100vh;
