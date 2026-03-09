@@ -1,12 +1,13 @@
 .stale-badge {
   margin: 0 0 14px;
-  display: inline-flex;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(245, 158, 11, 0.4);
-  background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
-  font-size: 12px;
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.2);
+  color: #fef3c7;
+  font-size: 13px;
   font-weight: 600;
 }
 

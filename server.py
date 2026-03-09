@@ -2003,8 +2003,6 @@ def _to_iso_or_none(dt_obj):
 
 def _approval_status_from_reply(reply_text):
     text = (reply_text or "").strip().lower()
-    if not text:
-        return None
     approved_terms = ("approved", "yes", "go", "do it")
     rejected_terms = ("no", "reject", "kill", "cancel")
     if any(term in text for term in approved_terms):
@@ -2325,7 +2323,7 @@ def api_usage_providers():
             "key": "claude",
             "name": "Claude (Opus + Sonnet)",
             "cost": "$200/mo (Max plan)",
-            "usage": "Opus: Telegram + #bill-direct. Sonnet: agents (when quota available). No API for usage tracking yet.",
+            "usage": "$200/mo Max plan — Opus (Telegram DM, #bill-direct), Sonnet (agents). Weekly rolling limits.",
             "status": get_status("claude", "ok"),
             "note": (provider_health.get("claude", {}) or {}).get("note", "Weekly rolling limits per model"),
         },
@@ -2573,21 +2571,17 @@ def api_projects():
         return jsonify({"projects": []})
     try:
         projects = json.loads(projects_file.read_text())
-        init_kanban_db()
-        conn = _kanban_conn()
-        task_rows = conn.execute("SELECT id, title, description, tags FROM kanban_tasks").fetchall()
-        conn.close()
-
-        task_records = []
-        for row in task_rows:
-            task_records.append({
-                "id": row["id"],
-                "search": " ".join([
-                    str(row["title"] or ""),
-                    str(row["description"] or ""),
-                    str(row["tags"] or ""),
-                ]).lower(),
-            })
+        tracker_text = ""
+        tracker_entries = []
+        tracker_path = Path(TASK_TRACKER_FILE)
+        if tracker_path.exists():
+            tracker_text = tracker_path.read_text(encoding="utf-8", errors="ignore")
+            tracker_entries = [
+                entry.strip().lower()
+                for entry in re.split(r'(?m)^###\s+', tracker_text)
+                if entry.strip()
+            ]
+        tracker_text_lc = tracker_text.lower()
 
         enriched = []
         bucket_overrides = {
@@ -2615,23 +2609,15 @@ def api_projects():
                 status, progress = status_overrides[p["id"]]
                 p["status"] = status
                 p["progress"] = progress
-            tokens = set()
-            for token in [p.get("id"), p.get("name"), p.get("discord_channel"), *(p.get("tags") or [])]:
-                if not token:
-                    continue
-                t = str(token).lower().strip()
-                if t:
-                    tokens.add(t)
-                if "-" in t:
-                    tokens.update([seg for seg in t.split("-") if len(seg) >= 3])
+            project_name = str(p.get("name") or "").strip().lower()
+            task_count = 0
+            if project_name:
+                if tracker_entries:
+                    task_count = sum(1 for entry in tracker_entries if project_name in entry)
+                elif tracker_text_lc:
+                    task_count = tracker_text_lc.count(project_name)
 
-            task_ids = []
-            for task in task_records:
-                if any(tok and len(tok) >= 3 and tok in task["search"] for tok in tokens):
-                    task_ids.append(task["id"])
-
-            p["task_count"] = len(task_ids)
-            p["task_ids"] = task_ids
+            p["task_count"] = int(task_count)
             enriched.append(p)
 
         return jsonify({"projects": enriched})
@@ -2760,10 +2746,9 @@ def api_approvals_update(approval_id):
     init_approvals_db()
     payload = request.get_json(silent=True) or {}
     status = payload.get("status")
-    reply_text = payload.get("reply_text", "")
-    inferred_status = _approval_status_from_reply(reply_text)
-    if inferred_status:
-        status = inferred_status
+    reply_text = payload.get("reply_text")
+    if reply_text is not None:
+        status = _approval_status_from_reply(reply_text)
     fields = []
     values = []
     if status:

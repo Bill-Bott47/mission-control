@@ -90,14 +90,28 @@ const renderChannels = (channels) => {
     return;
   }
 
-  const topFive = [...channels].sort((a, b) => (b.total_calls_per_day || 0) - (a.total_calls_per_day || 0)).slice(0, 5);
-
-  channelTable.innerHTML = topFive.map((channel) => `
+  const sorted = [...channels].sort((a, b) => (b.total_calls_per_day || 0) - (a.total_calls_per_day || 0));
+  const topFive = sorted.slice(0, 5);
+  const remaining = sorted.slice(5);
+  const renderItem = (channel) => `
     <div class="channel-card-item">
       <div class="channel-title">${channel.channel_name || 'Unknown channel'}</div>
       <div class="channel-usage">${Number(channel.total_calls_per_day || 0).toLocaleString()} calls/day</div>
     </div>
-  `).join('');
+  `;
+
+  const remainingBlock = remaining.length
+    ? `
+      <details class="channel-more">
+        <summary>Show more (${remaining.length})</summary>
+        <div class="channel-more-list">
+          ${remaining.map((channel) => renderItem(channel)).join('')}
+        </div>
+      </details>
+    `
+    : '';
+
+  channelTable.innerHTML = `${topFive.map((channel) => renderItem(channel)).join('')}${remainingBlock}`;
 };
 
 const escapeHtml = (text) => {

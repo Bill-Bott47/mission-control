@@ -99,11 +99,7 @@ function showDetail(item) {
       } else {
         result = await updateApproval(item.id, item.status, replyText);
       }
-      if (result?.routed_to_discord) {
-        showBanner('✅ Reply routed to Discord #inbox');
-      } else {
-        showBanner('✅ Reply saved');
-      }
+      if (result) showBanner('✅ Reply received — routing to Bill');
       await loadApprovals();
     });
   });

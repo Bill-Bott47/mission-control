@@ -6,6 +6,11 @@ function fmtAgo(seconds) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+function fmtDaysAgo(seconds) {
+  const days = Math.max(1, Math.floor(Number(seconds || 0) / 86400));
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
 function asDisplay(value, prefixDollar = false) {
   if (value === null || value === undefined || value === '') return '—';
   if (prefixDollar && typeof value === 'number') return `$${value}`;
@@ -29,7 +34,7 @@ async function loadSignalsPage() {
   const staleEl = document.getElementById('signals-stale');
   if (staleEl) {
     if (data.stale) {
-      staleEl.textContent = `⚠️ Stale — last update ${fmtAgo(data.age_seconds || 0)}`;
+      staleEl.textContent = `⚠️ Signal data is stale — last updated ${fmtDaysAgo(data.age_seconds || 0)}`;
       staleEl.classList.remove('hidden');
     } else {
       staleEl.classList.add('hidden');
@@ -92,8 +97,9 @@ function renderSignals(items) {
         <span>${pattern}</span>
         <span>${confidence}</span>
         <span>Entry ${entry}</span>
-        <span>TP ${tp1}</span>
         <span>SL ${sl}</span>
+        <span>TP1 ${tp1}</span>
+        <span>TP2 ${tp2}</span>
       </div>
     `;
     return row;
