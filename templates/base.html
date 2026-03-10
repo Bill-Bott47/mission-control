@@ -59,6 +59,13 @@
                 <a href="/office" class="{% if request.path.startswith('/office') %}active{% endif %}">
                     <span class="nav-left"><span class="nav-icon">🏙️</span>Office</span>
                 </a>
+                <a href="/ops" class="{% if request.path.startswith('/ops') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🚨</span>Ops</span>
+                    <span id="ops-alert-badge" class="badge" style="display:none;background:#ff4757;">0</span>
+                </a>
+                <a href="/graph" class="{% if request.path.startswith('/graph') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🕸️</span>Graph</span>
+                </a>
             </nav>
         </aside>
         <main class="main">
@@ -75,6 +82,26 @@
     </div>
 
     <script src="{{ url_for('static', filename='shell.js') }}"></script>
+    <script>
+    // Global ops alert badge
+    async function updateGlobalAlertBadge() {
+      try {
+        const res = await fetch('/api/alerts');
+        const data = await res.json();
+        const badge = document.getElementById('ops-alert-badge');
+        if (!badge) return;
+        const critical = (data.counts && (data.counts.red || 0) + (data.counts.orange || 0)) || 0;
+        if (critical > 0) {
+          badge.textContent = critical;
+          badge.style.display = '';
+        } else {
+          badge.style.display = 'none';
+        }
+      } catch(e) { /* silent */ }
+    }
+    updateGlobalAlertBadge();
+    setInterval(updateGlobalAlertBadge, 120000); // refresh every 2min
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

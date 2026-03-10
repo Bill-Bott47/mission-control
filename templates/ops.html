@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+{% block title %}JonathanOS — Live Ops{% endblock %}
+{% block head %}
+<style>
+/* ── Ops Dashboard ─────────────────────────────────────────────────────────── */
+.ops-page { padding: 20px; max-width: 1400px; }
+
+/* Alert strip */
+.alert-strip {
+  display: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-left: 4px solid var(--red, #e55);
+  background: rgba(220, 53, 69, 0.12);
+}
+.alert-strip.has-alerts { display: block; }
+.alert-strip-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+  color: #ff6b6b;
+}
+.alert-strip-header .alert-icon { font-size: 1.1rem; }
+.alert-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.alert-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.82rem;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-muted, #aaa);
+}
+.alert-item:last-child { border-bottom: none; }
+.alert-pill {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.pill-RED    { background: rgba(220,53,69,0.25); color: #ff6b6b; }
+.pill-ORANGE { background: rgba(255,140,0,0.25); color: #ffa040; }
+.pill-YELLOW { background: rgba(255,193,7,0.2);  color: #ffd700; }
+
+/* Section headers */
+.ops-section { margin-bottom: 32px; }
+.ops-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ops-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary, #e8e8e8);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ops-section-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+  margin-left: auto;
+}
+.refresh-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  color: var(--text-muted, #888);
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.refresh-btn:hover { background: rgba(255,255,255,0.06); color: #ddd; }
+
+/* Cron health grid */
+.cron-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.cron-card {
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 12px 14px;
+  border-left: 3px solid transparent;
+  position: relative;
+  transition: background 0.15s;
+}
+.cron-card:hover { background: rgba(255,255,255,0.07); }
+.cron-card.green  { border-left-color: #2ed573; }
+.cron-card.yellow { border-left-color: #ffd700; }
+.cron-card.red    { border-left-color: #ff4757; }
+.cron-card.orange { border-left-color: #ff8c00; }
+.cron-card.disabled { border-left-color: #555; opacity: 0.5; }
+
+.cron-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary, #e8e8e8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 6px;
+}
+.cron-status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.cron-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-green  { background: #2ed573; box-shadow: 0 0 4px #2ed573; }
+.dot-yellow { background: #ffd700; box-shadow: 0 0 4px #ffd700; }
+.dot-red    { background: #ff4757; box-shadow: 0 0 4px #ff4757; animation: pulse-red 1.5s infinite; }
+.dot-orange { background: #ff8c00; box-shadow: 0 0 4px #ff8c00; }
+.dot-disabled { background: #555; }
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+}
+.cron-status-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.label-green   { color: #2ed573; }
+.label-yellow  { color: #ffd700; }
+.label-red     { color: #ff4757; }
+.label-orange  { color: #ff8c00; }
+.label-disabled{ color: #666; }
+
+.cron-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted, #888);
+  line-height: 1.5;
+}
+.cron-errors-badge {
+  position: absolute;
+  top: 8px; right: 8px;
+  background: #ff4757;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+.cron-running-badge {
+  position: absolute;
+  top: 8px; right: 8px;
+  background: rgba(46,213,115,0.2);
+  color: #2ed573;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+/* Task feed */
+.task-feed { display: flex; flex-direction: column; gap: 8px; }
+.task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 12px 14px;
+  border-left: 3px solid transparent;
+  transition: background 0.15s;
+}
+.task-row:hover { background: rgba(255,255,255,0.07); }
+.task-row.overdue  { border-left-color: #ff4757; }
+.task-row.blocked  { border-left-color: #ffd700; }
+.task-row.p1-crit  { border-left-color: #a855f7; }
+.task-row.p1       { border-left-color: #3b82f6; }
+.task-row.p2       { border-left-color: #64748b; }
+
+.task-id {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+  flex-shrink: 0;
+  min-width: 52px;
+  margin-top: 2px;
+}
+.task-body { flex: 1; min-width: 0; }
+.task-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary, #e8e8e8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.task-badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.task-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.badge-overdue  { background: rgba(255,71,87,0.2);   color: #ff6b79; }
+.badge-blocked  { background: rgba(255,215,0,0.15);  color: #ffd700; }
+.badge-p1crit   { background: rgba(168,85,247,0.2);  color: #c084fc; }
+.badge-p1       { background: rgba(59,130,246,0.2);  color: #60a5fa; }
+.badge-p2       { background: rgba(100,116,139,0.2); color: #94a3b8; }
+.badge-inprog   { background: rgba(34,197,94,0.15);  color: #4ade80; }
+.badge-open     { background: rgba(148,163,184,0.1); color: #94a3b8; }
+.badge-age      { background: rgba(255,255,255,0.06); color: #888; font-weight: 600; }
+.task-owner {
+  font-size: 0.7rem;
+  color: #666;
+  flex-shrink: 0;
+  text-align: right;
+  min-width: 60px;
+  margin-top: 2px;
+}
+
+/* Refresh timer */
+.refresh-timer {
+  font-size: 0.7rem;
+  color: #555;
+  margin-left: auto;
+}
+
+/* Summary bar */
+.ops-summary-bar {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.summary-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+}
+.chip-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.chip-green  { background: #2ed573; }
+.chip-yellow { background: #ffd700; }
+.chip-red    { background: #ff4757; }
+.chip-orange { background: #ff8c00; }
+
+.placeholder-text { color: #555; font-size: 0.82rem; font-style: italic; padding: 12px 0; }
+.error-text { color: #ff6b6b; font-size: 0.82rem; padding: 8px 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ops-page">
+
+  <!-- Alert strip -->
+  <div class="alert-strip" id="alert-strip">
+    <div class="alert-strip-header">
+      <span class="alert-icon">🚨</span>
+      <span id="alert-strip-title">Loading alerts...</span>
+    </div>
+    <ul class="alert-list" id="alert-list"></ul>
+  </div>
+
+  <!-- Cron Health -->
+  <section class="ops-section">
+    <div class="ops-section-header">
+      <span class="ops-section-title">⚙️ Cron Health</span>
+      <div class="ops-summary-bar" id="cron-summary-bar" style="margin-bottom:0;margin-left:16px;"></div>
+      <span class="refresh-timer" id="cron-refresh-timer"></span>
+      <button class="refresh-btn" onclick="loadCronHealth()">↻ Refresh</button>
+      <span class="ops-section-meta" id="cron-meta"></span>
+    </div>
+    <div class="cron-grid" id="cron-grid">
+      <div class="placeholder-text">Loading cron jobs...</div>
+    </div>
+  </section>
+
+  <!-- Task Feed -->
+  <section class="ops-section">
+    <div class="ops-section-header">
+      <span class="ops-section-title">📋 Task Feed</span>
+      <span class="refresh-timer" id="task-refresh-timer"></span>
+      <button class="refresh-btn" onclick="loadTaskFeed()">↻ Refresh</button>
+      <span class="ops-section-meta" id="task-meta"></span>
+    </div>
+    <div class="task-feed" id="task-feed">
+      <div class="placeholder-text">Loading tasks...</div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Ops Dashboard JS ──────────────────────────────────────────────────────────
+
+let cronRefreshCountdown = 60;
+let taskRefreshCountdown = 60;
+let alertsData = null;
+
+function fmtAge(days) {
+  if (days === null || days === undefined) return '—';
+  if (days === 0) return 'today';
+  if (days === 1) return '1d';
+  return `${days}d`;
+}
+
+function fmtLastRun(last_run, age_minutes) {
+  if (!last_run) return 'never';
+  if (age_minutes === null || age_minutes === undefined) return last_run;
+  if (age_minutes < 60) return `${age_minutes}m ago`;
+  if (age_minutes < 1440) return `${Math.round(age_minutes/60)}h ago`;
+  return `${Math.round(age_minutes/1440)}d ago`;
+}
+
+// ── Alert strip ───────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  try {
+    const res = await fetch('/api/alerts');
+    const data = await res.json();
+    alertsData = data;
+
+    const strip = document.getElementById('alert-strip');
+    const list  = document.getElementById('alert-list');
+    const title = document.getElementById('alert-strip-title');
+    list.innerHTML = '';
+
+    const { alerts, counts } = data;
+    const total = (counts.red || 0) + (counts.orange || 0) + (counts.yellow || 0);
+
+    if (total === 0) {
+      strip.classList.remove('has-alerts');
+      // Also update badge on nav
+      updateOpsNavBadge(0);
+      return;
+    }
+
+    strip.classList.add('has-alerts');
+    title.textContent = `${total} active alert${total !== 1 ? 's' : ''} — ${counts.red || 0} red · ${counts.orange || 0} orange · ${counts.yellow || 0} yellow`;
+
+    alerts.forEach(a => {
+      const li = document.createElement('li');
+      li.className = 'alert-item';
+      li.innerHTML = `<span class="alert-pill pill-${a.level}">${a.level}</span><span>${escHtml(a.message)}</span>`;
+      list.appendChild(li);
+    });
+
+    updateOpsNavBadge(counts.red + counts.orange);
+  } catch(e) {
+    console.error('alerts fetch failed', e);
+  }
+}
+
+function updateOpsNavBadge(count) {
+  // Update or create a badge on the Ops nav link
+  let badge = document.getElementById('ops-nav-badge');
+  if (count > 0) {
+    if (!badge) {
+      const navLink = document.querySelector('a[href="/ops"]');
+      if (navLink) {
+        badge = document.createElement('span');
+        badge.id = 'ops-nav-badge';
+        badge.className = 'badge';
+        badge.style.background = '#ff4757';
+        navLink.appendChild(badge);
+      }
+    }
+    if (badge) badge.textContent = count;
+  } else {
+    if (badge) badge.remove();
+  }
+}
+
+// ── Cron Health ───────────────────────────────────────────────────────────────
+async function loadCronHealth() {
+  const grid = document.getElementById('cron-grid');
+  const meta = document.getElementById('cron-meta');
+  const summaryBar = document.getElementById('cron-summary-bar');
+  cronRefreshCountdown = 60;
+
+  try {
+    const res = await fetch('/api/cron-health-live');
+    const data = await res.json();
+
+    if (data.error) {
+      grid.innerHTML = `<div class="error-text">⚠ ${escHtml(data.error)}</div>`;
+      return;
+    }
+
+    const { jobs, summary, ts } = data;
+    meta.textContent = `Updated ${new Date(ts).toLocaleTimeString()}`;
+
+    // Summary bar
+    summaryBar.innerHTML = `
+      <div class="summary-chip"><span class="chip-dot chip-green"></span>${summary.green} ok</div>
+      ${summary.yellow ? `<div class="summary-chip"><span class="chip-dot chip-yellow"></span>${summary.yellow} warn</div>` : ''}
+      ${summary.red    ? `<div class="summary-chip"><span class="chip-dot chip-red"></span>${summary.red} critical</div>` : ''}
+      ${summary.orange ? `<div class="summary-chip"><span class="chip-dot chip-orange"></span>${summary.orange} never ran</div>` : ''}
+    `;
+
+    // Sort: red → orange → yellow → green → disabled
+    const colorOrder = {red:0, orange:1, yellow:2, green:3, disabled:4};
+    jobs.sort((a,b) => (colorOrder[a.color]||5) - (colorOrder[b.color]||5));
+
+    grid.innerHTML = jobs.map(j => {
+      const dotClass = `dot-${j.color}`;
+      const labelClass = `label-${j.color}`;
+      const statusLabel = j.is_running ? 'RUNNING' :
+                          j.never_ran ? 'NEVER RAN' :
+                          (j.last_status || '?').toUpperCase();
+      const badge = j.is_running
+        ? `<span class="cron-running-badge">▶ LIVE</span>`
+        : (j.consecutive_errors >= 2 ? `<span class="cron-errors-badge">${j.consecutive_errors} ERR</span>` : '');
+
+      return `
+        <div class="cron-card ${j.color}">
+          ${badge}
+          <div class="cron-name" title="${escHtml(j.name)}">${escHtml(j.name)}</div>
+          <div class="cron-status-row">
+            <span class="cron-dot ${dotClass}"></span>
+            <span class="cron-status-label ${labelClass}">${statusLabel}</span>
+          </div>
+          <div class="cron-meta">
+            <div>Last: ${fmtLastRun(j.last_run, j.age_minutes)}</div>
+            <div>Next: ${j.next_run ? fmtNextRun(j.next_run) : '—'}</div>
+            ${j.schedule ? `<div style="opacity:0.6">${escHtml(j.schedule)}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = `<div class="error-text">⚠ Failed to load cron data</div>`;
+    console.error(e);
+  }
+}
+
+function fmtNextRun(nextStr) {
+  try {
+    const dt = new Date(nextStr);
+    const now = new Date();
+    const diffMs = dt - now;
+    if (diffMs < 0) return 'soon';
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin < 60) return `in ${diffMin}m`;
+    if (diffMin < 1440) return `in ${Math.round(diffMin/60)}h`;
+    return `in ${Math.round(diffMin/1440)}d`;
+  } catch(e) { return nextStr; }
+}
+
+// ── Task Feed ─────────────────────────────────────────────────────────────────
+async function loadTaskFeed() {
+  const feed = document.getElementById('task-feed');
+  const meta = document.getElementById('task-meta');
+  taskRefreshCountdown = 60;
+
+  try {
+    const res = await fetch('/api/tasks-live');
+    const data = await res.json();
+
+    if (data.error) {
+      feed.innerHTML = `<div class="error-text">⚠ ${escHtml(data.error)}</div>`;
+      return;
+    }
+
+    const { tasks, ts } = data;
+    meta.textContent = `Updated ${new Date(ts).toLocaleTimeString()} · ${tasks.length} items`;
+
+    if (tasks.length === 0) {
+      feed.innerHTML = `<div class="placeholder-text">✅ No overdue, blocked, or critical P1 tasks. Good shape.</div>`;
+      return;
+    }
+
+    feed.innerHTML = tasks.map(t => {
+      const status = (t.status || '').toUpperCase();
+      const priority = (t.priority || '').toUpperCase();
+
+      const isOverdue  = status.includes('OVERDUE');
+      const isBlocked  = status.includes('BLOCKED');
+      const isP1Crit   = priority.includes('P1-CRITICAL') || priority.includes('P1-C');
+      const isP1       = priority.includes('P1') && !isP1Crit;
+      const isP2       = priority.includes('P2');
+      const isInProg   = status.includes('IN_PROGRESS') || status.includes('IN PROGRESS');
+
+      // Row class
+      let rowClass = 'p2';
+      if (isOverdue) rowClass = 'overdue';
+      else if (isBlocked) rowClass = 'blocked';
+      else if (isP1Crit) rowClass = 'p1-crit';
+      else if (isP1) rowClass = 'p1';
+
+      // Badges
+      const badges = [];
+      if (isOverdue) badges.push(`<span class="task-badge badge-overdue">OVERDUE</span>`);
+      if (isBlocked) badges.push(`<span class="task-badge badge-blocked">BLOCKED</span>`);
+      if (isP1Crit)  badges.push(`<span class="task-badge badge-p1crit">P1-CRITICAL</span>`);
+      else if (isP1) badges.push(`<span class="task-badge badge-p1">P1</span>`);
+      else if (isP2) badges.push(`<span class="task-badge badge-p2">P2</span>`);
+      if (isInProg)  badges.push(`<span class="task-badge badge-inprog">IN PROGRESS</span>`);
+      else if (!isOverdue && !isBlocked) badges.push(`<span class="task-badge badge-open">${escHtml(t.status)}</span>`);
+      if (t.age_days !== null && t.age_days !== undefined) {
+        badges.push(`<span class="task-badge badge-age">${fmtAge(t.age_days)}</span>`);
+      }
+
+      return `
+        <div class="task-row ${rowClass}">
+          <div class="task-id">${escHtml(t.id)}</div>
+          <div class="task-body">
+            <div class="task-title">${escHtml(t.title)}</div>
+            <div class="task-badges">${badges.join('')}</div>
+          </div>
+          <div class="task-owner">${escHtml(t.owner)}</div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    feed.innerHTML = `<div class="error-text">⚠ Failed to load task data</div>`;
+    console.error(e);
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Auto-refresh countdown ────────────────────────────────────────────────────
+setInterval(() => {
+  cronRefreshCountdown--;
+  taskRefreshCountdown--;
+
+  const ct = document.getElementById('cron-refresh-timer');
+  const tt = document.getElementById('task-refresh-timer');
+  if (ct) ct.textContent = `auto-refresh in ${cronRefreshCountdown}s`;
+  if (tt) tt.textContent = `auto-refresh in ${taskRefreshCountdown}s`;
+
+  if (cronRefreshCountdown <= 0) { loadCronHealth(); loadAlerts(); }
+  if (taskRefreshCountdown <= 0) { loadTaskFeed(); }
+}, 1000);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadAlerts();
+loadCronHealth();
+loadTaskFeed();
+</script>
+{% endblock %}

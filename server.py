@@ -51,6 +51,10 @@ _load_env_file("/Users/bill/.openclaw/workspace/.env")
 app = Flask(__name__)
 app.secret_key = 'jos-star-office-2026'
 
+# Knowledge Graph blueprint (T-140)
+from graph_routes import graph_bp
+app.register_blueprint(graph_bp)
+
 # Configuration
 GATEWAY_TOKEN = "2306cfed437022f822d3830b3347fc2ab154abc32a3f0e03"
 GATEWAY_URL = "http://127.0.0.1:18789"
@@ -1471,8 +1475,8 @@ def message_center():
 
 @app.route('/ops')
 def ops():
-    """Ops view alias to Message Center."""
-    return render_template('message_center.html')
+    """Live Ops Dashboard — cron health, task feed, proactive alerts."""
+    return render_template('ops.html')
 
 @app.route('/tasks')
 def tasks_page():
@@ -2307,6 +2311,375 @@ def api_cron_jobs_live():
     if isinstance(payload, list):
         return jsonify(payload)
     return jsonify(payload)
+
+
+def _parse_cron_json_output(raw: str):
+    """Parse openclaw cron output which may have doctor/config warnings before JSON.
+    Finds the first { or [ and attempts JSON parse from that position.
+    """
+    idx_brace = raw.find('{')
+    idx_bracket = raw.find('[')
+    if idx_brace < 0 and idx_bracket < 0:
+        return None
+    if idx_brace >= 0 and (idx_bracket < 0 or idx_brace < idx_bracket):
+        start = idx_brace
+    else:
+        start = idx_bracket
+    try:
+        return json.loads(raw[start:])
+    except Exception:
+        return None
+
+
+def _get_cron_jobs_with_health():
+    """Fetch cron jobs and annotate each with health color and consecutive errors."""
+    result = _run_openclaw(["cron", "list", "--json"], timeout=20)
+    if not result:
+        return None, "openclaw unavailable"
+
+    # Try stdout first (JSON goes to stdout, warnings to stderr)
+    payload = _parse_cron_json_output(result.stdout or "")
+    # Fallback: try stderr (some versions may mix output)
+    if payload is None:
+        payload = _parse_cron_json_output(result.stderr or "")
+    if payload is None:
+        return None, "invalid JSON from openclaw"
+
+    # Normalize to list
+    jobs = []
+    if isinstance(payload, dict) and "jobs" in payload:
+        inner = payload["jobs"]
+        if isinstance(inner, list):
+            jobs = inner
+        elif isinstance(inner, dict) and "jobs" in inner:
+            jobs = inner["jobs"]
+    elif isinstance(payload, list):
+        jobs = payload
+
+    def _fmt_ms(ms):
+        """Convert epoch milliseconds to human-readable datetime string."""
+        if ms is None:
+            return None
+        try:
+            return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return None
+
+    now_ms = int(time.time() * 1000)
+    enriched = []
+    for job in jobs:
+        state = job.get("state") or {}
+        last_status = state.get("lastStatus") or state.get("lastRunStatus") or "unknown"
+        consecutive_errors = state.get("consecutiveErrors", 0) or 0
+        last_run_ms = state.get("lastRunAtMs")
+        next_run_ms = state.get("nextRunAtMs")
+        running_at_ms = state.get("runningAtMs")
+        enabled = job.get("enabled", True)
+
+        # Determine if it has never run
+        never_ran = last_run_ms is None
+
+        # Color coding
+        if not enabled:
+            color = "disabled"
+        elif never_ran:
+            color = "orange"
+        elif consecutive_errors >= 2:
+            color = "red"
+        elif consecutive_errors == 1 or last_status == "error":
+            color = "yellow"
+        else:
+            color = "green"
+
+        # Age since last run in minutes
+        age_minutes = None
+        if last_run_ms:
+            age_minutes = int((now_ms - last_run_ms) / 60000)
+
+        # Is it currently running?
+        is_running = running_at_ms is not None and running_at_ms > 0
+
+        enriched.append({
+            "id": job.get("id"),
+            "name": job.get("name", "unknown"),
+            "enabled": enabled,
+            "last_run": _fmt_ms(last_run_ms),
+            "last_run_ms": last_run_ms,
+            "next_run": _fmt_ms(next_run_ms),
+            "last_status": last_status,
+            "consecutive_errors": consecutive_errors,
+            "never_ran": never_ran,
+            "color": color,
+            "age_minutes": age_minutes,
+            "is_running": is_running,
+            "model": (job.get("payload") or {}).get("model", ""),
+            "schedule": _fmt_schedule(job.get("schedule") or {}),
+        })
+
+    return enriched, None
+
+
+def _fmt_schedule(sched: dict) -> str:
+    kind = sched.get("kind", "")
+    if kind == "cron":
+        expr = sched.get("expr", "")
+        tz = sched.get("tz", "")
+        return f"cron {expr}" + (f" ({tz})" if tz else "")
+    elif kind in ("every", "interval"):
+        # OpenClaw uses 'every' with 'everyMs', or 'interval' with 'ms'
+        ms = sched.get("everyMs") or sched.get("ms") or 0
+        if not ms:
+            return "every ?"
+        minutes = ms // 60000
+        if minutes >= 1440:
+            return f"every {minutes // 1440}d"
+        if minutes >= 60:
+            return f"every {minutes // 60}h"
+        return f"every {minutes}m"
+    elif kind == "once":
+        ts = sched.get("at")
+        return f"at {ts}" if ts else "once"
+    return kind or "unknown"
+
+
+def _task_priority_rank(p: str) -> int:
+    """Convert priority string to sort key (lower = higher priority)."""
+    p_upper = p.upper()
+    if 'P1-CRITICAL' in p_upper or 'P1-C' in p_upper:
+        return 0
+    elif 'P1' in p_upper:
+        return 1
+    elif 'P2' in p_upper:
+        return 2
+    elif 'P3' in p_upper:
+        return 3
+    return 4
+
+
+def _parse_task_tracker():
+    """Parse TASK_TRACKER.md and return tasks relevant for ops panel."""
+    try:
+        with open(TASK_TRACKER_FILE, 'r') as f:
+            content = f.read()
+    except Exception:
+        return []
+
+    tasks = []
+    now = datetime.now()
+
+    # Split on task blocks — each task starts with ### T-NNN or ## T-NNN
+    blocks = re.split(r'\n(?=###? T-\d+)', content)
+
+    for block in blocks:
+        if not block.strip():
+            continue
+
+        # Extract task ID
+        tid_match = re.search(r'(T-\d+)', block)
+        if not tid_match:
+            continue
+        task_id = tid_match.group(1)
+
+        # Extract title - first line after T-NNN heading
+        title_match = re.search(r'T-\d+[:\s]*([^\n]*)', block)
+        title = title_match.group(1).strip().strip(':').strip() if title_match else task_id
+
+        # Extract status
+        status_match = re.search(r'\*\*Status:\*\*\s*([^\n]+)', block, re.IGNORECASE)
+        if not status_match:
+            # Try dash-based format: - **Status:** ...
+            status_match = re.search(r'Status[:\s]+([^\n]+)', block, re.IGNORECASE)
+        status_raw = status_match.group(1).strip() if status_match else "UNKNOWN"
+        # Normalize
+        status = status_raw.upper().replace('✅', '').strip()
+        # Remove trailing markdown
+        status = re.sub(r'\s*[\(\[].*', '', status).strip()
+
+        # Skip DONE tasks
+        if 'DONE' in status or '✅' in status_raw:
+            continue
+
+        # Extract priority
+        priority_match = re.search(r'\*\*Priority:\*\*\s*([^\n]+)', block, re.IGNORECASE)
+        if not priority_match:
+            priority_match = re.search(r'Priority[:\s]+([^\n]+)', block, re.IGNORECASE)
+        priority_raw = priority_match.group(1).strip() if priority_match else "P3"
+        priority = priority_raw.strip()
+
+        # Extract created date
+        created_match = re.search(r'\*\*Created:\*\*\s*(\d{4}-\d{2}-\d{2})', block, re.IGNORECASE)
+        if not created_match:
+            created_match = re.search(r'Created[:\s]+(\d{4}-\d{2}-\d{2})', block, re.IGNORECASE)
+        created_str = created_match.group(1) if created_match else None
+
+        # Extract owner
+        owner_match = re.search(r'\*\*(?:Owner|Agents?):\*\*\s*([^\n]+)', block, re.IGNORECASE)
+        owner = owner_match.group(1).strip() if owner_match else "—"
+
+        # Calculate age
+        age_days = None
+        if created_str:
+            try:
+                created_dt = datetime.strptime(created_str, "%Y-%m-%d")
+                age_days = (now - created_dt).days
+            except Exception:
+                pass
+
+        tasks.append({
+            "id": task_id,
+            "title": title[:80] if title else task_id,
+            "status": status,
+            "priority": priority,
+            "priority_rank": _task_priority_rank(priority),
+            "created": created_str,
+            "age_days": age_days,
+            "owner": owner[:40] if owner else "—",
+        })
+
+    return tasks
+
+
+@app.route('/api/cron-health-live')
+def api_cron_health_live():
+    """Live cron health: all jobs with color coding and consecutive errors."""
+    jobs, err = _get_cron_jobs_with_health()
+    if err:
+        return jsonify({"error": err}), 500
+    return jsonify({
+        "jobs": jobs,
+        "total": len(jobs),
+        "ts": datetime.now().isoformat(),
+        "summary": {
+            "green": sum(1 for j in jobs if j["color"] == "green"),
+            "yellow": sum(1 for j in jobs if j["color"] == "yellow"),
+            "red": sum(1 for j in jobs if j["color"] == "red"),
+            "orange": sum(1 for j in jobs if j["color"] == "orange"),
+            "disabled": sum(1 for j in jobs if j["color"] == "disabled"),
+        }
+    })
+
+
+@app.route('/api/tasks-live')
+def api_tasks_live():
+    """Live task feed from TASK_TRACKER.md — surfaces OVERDUE, BLOCKED, P1 not DONE."""
+    tasks = _parse_task_tracker()
+
+    # Filter to ops-relevant tasks: OVERDUE, BLOCKED, IN_PROGRESS P1, or OPEN P1
+    ops_tasks = []
+    for t in tasks:
+        status = t["status"]
+        priority = t["priority"].upper()
+        age = t["age_days"] or 0
+
+        is_overdue = "OVERDUE" in status
+        is_blocked = "BLOCKED" in status
+        is_p1 = "P1" in priority
+        is_in_progress = "IN_PROGRESS" in status or "IN PROGRESS" in status
+
+        if is_overdue or is_blocked or is_p1 or (is_in_progress and age >= 2):
+            ops_tasks.append(t)
+
+    # Sort: P1-Critical first, then P1, then by age descending
+    ops_tasks.sort(key=lambda t: (t["priority_rank"], -(t["age_days"] or 0)))
+
+    return jsonify({
+        "tasks": ops_tasks,
+        "total": len(ops_tasks),
+        "ts": datetime.now().isoformat(),
+    })
+
+
+@app.route('/api/alerts')
+def api_alerts():
+    """Proactive alert feed — surfaces cron errors and stalled tasks."""
+    alerts = []
+    now_iso = datetime.now().isoformat()
+
+    # --- Cron alerts ---
+    jobs, err = _get_cron_jobs_with_health()
+    if err:
+        alerts.append({
+            "level": "RED",
+            "source": "cron-health",
+            "message": f"Cannot fetch cron status: {err}",
+            "ts": now_iso,
+        })
+    else:
+        for job in jobs:
+            name = job["name"]
+            consecutive = job["consecutive_errors"]
+            never_ran = job["never_ran"]
+            enabled = job["enabled"]
+
+            if not enabled:
+                continue
+
+            if never_ran:
+                alerts.append({
+                    "level": "ORANGE",
+                    "source": f"cron/{name}",
+                    "message": f"Cron job '{name}' has never run",
+                    "ts": now_iso,
+                })
+            elif consecutive >= 2:
+                alerts.append({
+                    "level": "RED",
+                    "source": f"cron/{name}",
+                    "message": f"Cron job '{name}' has {consecutive} consecutive errors",
+                    "ts": now_iso,
+                })
+            elif consecutive == 1:
+                alerts.append({
+                    "level": "YELLOW",
+                    "source": f"cron/{name}",
+                    "message": f"Cron job '{name}' errored on last run",
+                    "ts": now_iso,
+                })
+
+    # --- Task alerts ---
+    tasks = _parse_task_tracker()
+    now = datetime.now()
+    for task in tasks:
+        status = task["status"]
+        age = task["age_days"] or 0
+        tid = task["id"]
+        title = task["title"]
+
+        if "OVERDUE" in status:
+            alerts.append({
+                "level": "RED",
+                "source": f"task/{tid}",
+                "message": f"{tid}: '{title}' is OVERDUE ({age}d old)",
+                "ts": now_iso,
+            })
+        elif "BLOCKED" in status:
+            alerts.append({
+                "level": "YELLOW",
+                "source": f"task/{tid}",
+                "message": f"{tid}: '{title}' is BLOCKED ({age}d old)",
+                "ts": now_iso,
+            })
+        elif age >= 3 and ("IN_PROGRESS" in status or "IN PROGRESS" in status):
+            alerts.append({
+                "level": "YELLOW",
+                "source": f"task/{tid}",
+                "message": f"{tid}: '{title}' stalled IN_PROGRESS for {age} days",
+                "ts": now_iso,
+            })
+
+    # Sort: RED first, then ORANGE, then YELLOW
+    level_order = {"RED": 0, "ORANGE": 1, "YELLOW": 2}
+    alerts.sort(key=lambda a: level_order.get(a["level"], 3))
+
+    return jsonify({
+        "alerts": alerts,
+        "counts": {
+            "red": sum(1 for a in alerts if a["level"] == "RED"),
+            "orange": sum(1 for a in alerts if a["level"] == "ORANGE"),
+            "yellow": sum(1 for a in alerts if a["level"] == "YELLOW"),
+        },
+        "ts": now_iso,
+    })
 
 
 @app.route('/api/usage/providers')
