@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}LinkedIn Content Calendar — JonathanOS{% endblock %}
+
+{% block head %}
+<style>
+  .calendar-shell { padding: 28px; }
+  .calendar-header { display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px; }
+  .calendar-header h1 { font-size: 24px; margin: 0; }
+  .calendar-sub { color:#9aa6bd; font-size: 13px; }
+  .calendar-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap: 14px; }
+  .day-col { background:#0f1522; border:1px solid #1a2333; border-radius: 12px; padding: 12px; min-height: 240px; }
+  .day-col.drag-over { border-color:#3b82f6; box-shadow: 0 0 0 1px rgba(59,130,246,0.4); }
+  .day-title { font-size: 12px; color:#cdd6e5; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .day-date { font-size: 11px; color:#7f8aa3; margin-bottom: 12px; }
+  .post-card { background:#141c2c; border:1px solid #222c3d; border-radius: 10px; padding: 10px; margin-bottom: 8px; cursor: grab; }
+  .post-card.dragging { opacity:0.6; }
+  .post-title { font-size: 13px; color:#f1f5f9; margin-bottom: 6px; }
+  .post-meta { font-size: 11px; color:#8fa0bc; display:flex; gap:10px; flex-wrap: wrap; }
+  .post-chip { background:#1f2a3d; border-radius: 999px; padding: 2px 8px; }
+  .engagement-panel { margin-top: 24px; padding: 16px; background:#101728; border-radius: 12px; border:1px solid #1c2535; }
+  .engagement-row { display:flex; justify-content:space-between; color:#cbd5f0; font-size: 12px; padding: 8px 0; border-bottom:1px solid #1c2535; }
+  .engagement-row:last-child { border-bottom:none; }
+  .btn-refresh { background:#1f2937; border:1px solid #2b3648; color:#cbd5f0; padding: 6px 10px; border-radius: 8px; font-size: 12px; cursor:pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="calendar-shell">
+  <div class="calendar-header">
+    <div>
+      <h1>LinkedIn Content Calendar</h1>
+      <div class="calendar-sub">Drag posts to reschedule. Hooks = A/B test variants.</div>
+    </div>
+    <button class="btn-refresh" id="refresh-btn">Refresh</button>
+  </div>
+
+  <div class="calendar-grid" id="calendar-grid"></div>
+
+  <div class="engagement-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:13px;font-weight:600;color:#e2e8f0;">Engagement Tracker</div>
+      <div id="engagement-updated" style="font-size:11px;color:#7f8aa3;">—</div>
+    </div>
+    <div id="engagement-list" style="margin-top:10px;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const grid = document.getElementById('calendar-grid');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const engagementList = document.getElementById('engagement-list');
+  const engagementUpdated = document.getElementById('engagement-updated');
+
+  function startOfDay(date) {
+    const d = new Date(date);
+    d.setHours(0,0,0,0);
+    return d;
+  }
+
+  function formatDate(date) {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function formatDay(date) {
+    return date.toLocaleDateString(undefined, { weekday: 'short' });
+  }
+
+  function buildWeek() {
+    const today = startOfDay(new Date());
+    return Array.from({length: 7}, (_, i) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }
+
+  function renderCalendar(posts) {
+    grid.innerHTML = '';
+    const week = buildWeek();
+    const byDate = {};
+    posts.forEach(post => {
+      const dateKey = post.scheduled_at ? post.scheduled_at.slice(0,10) : '';
+      byDate[dateKey] = byDate[dateKey] || [];
+      byDate[dateKey].push(post);
+    });
+
+    week.forEach(day => {
+      const key = day.toISOString().slice(0,10);
+      const col = document.createElement('div');
+      col.className = 'day-col';
+      col.dataset.date = key;
+      col.innerHTML = `
+        <div class="day-title">${formatDay(day)}</div>
+        <div class="day-date">${formatDate(day)}</div>
+      `;
+
+      const postsForDay = (byDate[key] || []);
+      postsForDay.forEach(post => {
+        const card = document.createElement('div');
+        card.className = 'post-card';
+        card.draggable = true;
+        card.dataset.postId = post.id;
+        card.dataset.scheduledAt = post.scheduled_at;
+        card.innerHTML = `
+          <div class="post-title">${post.title}</div>
+          <div class="post-meta">
+            <span class="post-chip">${post.hook_variant || '—'}</span>
+            <span>${(post.scheduled_at || '').slice(11,16)}</span>
+            <span>${post.audience_tag || ''}</span>
+          </div>
+        `;
+        card.addEventListener('dragstart', () => {
+          card.classList.add('dragging');
+          card.dataset.dragging = 'true';
+        });
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          card.dataset.dragging = 'false';
+        });
+        col.appendChild(card);
+      });
+
+      col.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        col.classList.add('drag-over');
+      });
+      col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+      col.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        col.classList.remove('drag-over');
+        const dragged = document.querySelector('.post-card.dragging');
+        if (!dragged) return;
+        const postId = dragged.dataset.postId;
+        const scheduledAt = dragged.dataset.scheduledAt || `${key}T09:00:00-05:00`;
+        const timePart = scheduledAt.slice(11);
+        const newScheduledAt = `${key}T${timePart}`;
+        await fetch('/api/linkedin/calendar/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ post_id: postId, scheduled_at: newScheduledAt })
+        });
+        await loadCalendar();
+      });
+
+      grid.appendChild(col);
+    });
+  }
+
+  function renderEngagement(data) {
+    engagementList.innerHTML = '';
+    if (!data || !data.posts || data.posts.length === 0) {
+      engagementList.innerHTML = '<div style="color:#7f8aa3;font-size:12px;">No engagement data yet.</div>';
+      return;
+    }
+    engagementUpdated.textContent = data.last_updated ? `Updated ${new Date(data.last_updated).toLocaleString()}` : '—';
+    data.posts.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'engagement-row';
+      row.innerHTML = `
+        <span>${item.post_id}</span>
+        <span>👍 ${item.likes || 0} · 💬 ${item.comments || 0} · 🔁 ${item.shares || 0}</span>
+      `;
+      engagementList.appendChild(row);
+    });
+  }
+
+  async function loadCalendar() {
+    const res = await fetch('/api/linkedin/calendar');
+    const data = await res.json();
+    renderCalendar(data.posts || []);
+    if (data.engagement) {
+      renderEngagement(data.engagement);
+    }
+  }
+
+  refreshBtn.addEventListener('click', loadCalendar);
+  loadCalendar();
+</script>
+{% endblock %}
