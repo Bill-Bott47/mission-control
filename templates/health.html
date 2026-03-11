@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}JonathanOS — Health{% endblock %}
+{% block head %}
+<style>
+.health-page { padding: 20px; max-width: 1400px; }
+.health-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.health-title { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.02em; }
+.health-sub { font-size: 0.82rem; color: var(--text-muted, #888); }
+.health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.health-card {
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.health-card h4 { font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted, #888); margin: 0 0 8px; letter-spacing: 0.08em; }
+.health-card .value { font-size: 1.1rem; font-weight: 700; }
+.health-card .muted { font-size: 0.74rem; color: var(--text-muted, #888); margin-top: 6px; }
+.health-card.good { border-color: rgba(46,213,115,0.3); }
+.health-card.warn { border-color: rgba(255,193,7,0.3); }
+.health-card.bad { border-color: rgba(255,71,87,0.35); }
+.section { margin-bottom: 26px; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-title { font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.refresh-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  color: var(--text-muted, #888);
+  font-size: 0.7rem;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.cron-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.cron-card {
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 12px 14px;
+  border-left: 3px solid transparent;
+}
+.cron-card.green { border-left-color: #2ed573; }
+.cron-card.yellow { border-left-color: #ffd700; }
+.cron-card.red { border-left-color: #ff4757; }
+.cron-card.orange { border-left-color: #ff8c00; }
+.cron-card.disabled { border-left-color: #555; opacity: 0.6; }
+.cron-name { font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; }
+.cron-meta { font-size: 0.72rem; color: var(--text-muted, #888); line-height: 1.4; }
+.alert-list { display: flex; flex-direction: column; gap: 8px; }
+.alert-item { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px 12px; border-left: 3px solid transparent; }
+.alert-item.red { border-left-color: #ff4757; }
+.alert-item.orange { border-left-color: #ff8c00; }
+.alert-item.yellow { border-left-color: #ffd700; }
+.alert-title { font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
+.alert-meta { font-size: 0.7rem; color: var(--text-muted, #888); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="health-page">
+  <div class="health-header">
+    <div>
+      <div class="health-title">System Health</div>
+      <div class="health-sub">Cron status, last sync, and active errors</div>
+    </div>
+    <button class="refresh-btn" onclick="refreshHealth()">Refresh</button>
+  </div>
+
+  <div class="health-grid">
+    <div class="health-card" id="health-last-sync">
+      <h4>Last Sync</h4>
+      <div class="value">—</div>
+      <div class="muted" id="health-last-sync-meta">Awaiting data</div>
+    </div>
+    <div class="health-card" id="health-cron-total">
+      <h4>Total Crons</h4>
+      <div class="value">—</div>
+      <div class="muted" id="health-cron-running">Running: —</div>
+    </div>
+    <div class="health-card" id="health-errors">
+      <h4>Errors</h4>
+      <div class="value">—</div>
+      <div class="muted" id="health-errors-meta">Red + Orange + Yellow</div>
+    </div>
+    <div class="health-card" id="health-green">
+      <h4>Healthy</h4>
+      <div class="value">—</div>
+      <div class="muted" id="health-green-meta">Green crons</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Cron Health</div>
+      <div class="health-sub" id="cron-last-updated">—</div>
+    </div>
+    <div class="cron-grid" id="cron-grid"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Active Alerts</div>
+      <div class="health-sub" id="alerts-last-updated">—</div>
+    </div>
+    <div class="alert-list" id="alert-list"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function badgeClass(level) {
+  if (!level) return '';
+  const v = level.toLowerCase();
+  if (v.includes('red')) return 'red';
+  if (v.includes('orange')) return 'orange';
+  if (v.includes('yellow')) return 'yellow';
+  return '';
+}
+
+async function loadHealthSummary() {
+  const res = await fetch('/api/health/summary');
+  const data = await res.json();
+  if (data.error) return;
+
+  const lastSync = document.querySelector('#health-last-sync .value');
+  const lastMeta = document.getElementById('health-last-sync-meta');
+  lastSync.textContent = data.last_sync || '—';
+  lastMeta.textContent = data.last_sync ? `Updated ${new Date(data.last_sync).toLocaleString()}` : 'No sync recorded';
+
+  const totalCard = document.querySelector('#health-cron-total .value');
+  totalCard.textContent = data.cron.total ?? '—';
+  document.getElementById('health-cron-running').textContent = `Running: ${data.cron.summary.running ?? 0}`;
+
+  const errorsCard = document.querySelector('#health-errors .value');
+  errorsCard.textContent = data.errors ?? 0;
+  const errorsBox = document.getElementById('health-errors');
+  errorsBox.classList.toggle('bad', (data.errors ?? 0) > 0);
+
+  const greenCard = document.querySelector('#health-green .value');
+  greenCard.textContent = data.cron.summary.green ?? 0;
+  document.getElementById('health-green').classList.toggle('good', (data.cron.summary.green ?? 0) > 0);
+}
+
+async function loadCronHealth() {
+  const res = await fetch('/api/cron-health-live');
+  const data = await res.json();
+  const grid = document.getElementById('cron-grid');
+  grid.innerHTML = '';
+  if (data.error || !data.jobs) {
+    grid.innerHTML = '<div class="health-sub">Unable to load cron data.</div>';
+    return;
+  }
+  data.jobs.forEach(job => {
+    const card = document.createElement('div');
+    card.className = `cron-card ${job.color}`;
+    card.innerHTML = `
+      <div class="cron-name">${job.name}</div>
+      <div class="cron-meta">Status: ${job.last_status || 'unknown'}</div>
+      <div class="cron-meta">Last: ${job.last_run || 'never'}</div>
+      <div class="cron-meta">Next: ${job.next_run || '—'}</div>
+    `;
+    grid.appendChild(card);
+  });
+  document.getElementById('cron-last-updated').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+}
+
+async function loadAlerts() {
+  const res = await fetch('/api/alerts');
+  const data = await res.json();
+  const list = document.getElementById('alert-list');
+  list.innerHTML = '';
+  if (!data.alerts || data.alerts.length === 0) {
+    list.innerHTML = '<div class="health-sub">No active alerts.</div>';
+    return;
+  }
+  data.alerts.slice(0, 8).forEach(alert => {
+    const item = document.createElement('div');
+    item.className = `alert-item ${badgeClass(alert.level)}`;
+    item.innerHTML = `
+      <div class="alert-title">${alert.source || 'alert'}</div>
+      <div class="alert-meta">${alert.message || ''}</div>
+      <div class="alert-meta">${alert.ts || ''}</div>
+    `;
+    list.appendChild(item);
+  });
+  document.getElementById('alerts-last-updated').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+}
+
+async function refreshHealth() {
+  await Promise.all([loadHealthSummary(), loadCronHealth(), loadAlerts()]);
+}
+
+refreshHealth();
+setInterval(refreshHealth, 120000);
+</script>
+{% endblock %}

@@ -34,6 +34,9 @@
                 <a href="/calendar" class="{% if request.path.startswith('/calendar') %}active{% endif %}">
                     <span class="nav-left"><span class="nav-icon">📅</span>Calendar</span>
                 </a>
+                <a href="/linkedin" class="{% if request.path.startswith('/linkedin') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🔗</span>LinkedIn</span>
+                </a>
                 <a href="/team" class="{% if request.path.startswith('/team') %}active{% endif %}">
                     <span class="nav-left"><span class="nav-icon">🧑‍🤝‍🧑</span>Team</span>
                 </a>
@@ -55,6 +58,9 @@
                 </a>
                 <a href="/usage" class="{% if request.path.startswith('/usage') %}active{% endif %}">
                     <span class="nav-left"><span class="nav-icon">📊</span>Usage</span>
+                </a>
+                <a href="/health" class="{% if request.path.startswith('/health') %}active{% endif %}">
+                    <span class="nav-left"><span class="nav-icon">🩺</span>Health</span>
                 </a>
                 <a href="/office" class="{% if request.path.startswith('/office') %}active{% endif %}">
                     <span class="nav-left"><span class="nav-icon">🏙️</span>Office</span>

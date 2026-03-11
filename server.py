@@ -68,6 +68,10 @@ TASK_TRACKER_FILE = "/Users/bill/.openclaw/workspace/TASK_TRACKER.md"
 SENTINEL_STATE_FILE = "/Users/bill/.openclaw/workspace/ops/sentinel-state.json"
 SENTINEL_REVIEWS_FILE = "/Users/bill/.openclaw/workspace/audits/sentinel-reviews.md"
 
+LINKEDIN_DIR = "/Users/bill/.openclaw/workspace/projects/linkedin"
+LINKEDIN_CALENDAR_FILE = os.path.join(LINKEDIN_DIR, "data", "calendar.json")
+LINKEDIN_ENGAGEMENT_FILE = os.path.join(LINKEDIN_DIR, "data", "engagement.json")
+
 DISCORD_CHANNEL_MAP = {
     "1475879552633802966": "#general",
     "1475882688559845541": "#inbox",
@@ -118,6 +122,41 @@ ASSET_NAME_MAP = {
     "NVDA": "NVIDIA",
 }
 
+
+def _ensure_linkedin_files():
+    try:
+        Path(os.path.join(LINKEDIN_DIR, "data")).mkdir(parents=True, exist_ok=True)
+        if not os.path.exists(LINKEDIN_CALENDAR_FILE):
+            with open(LINKEDIN_CALENDAR_FILE, "w", encoding="utf-8") as f:
+                json.dump({"timezone": "America/Chicago", "posts": []}, f, indent=2)
+        if not os.path.exists(LINKEDIN_ENGAGEMENT_FILE):
+            with open(LINKEDIN_ENGAGEMENT_FILE, "w", encoding="utf-8") as f:
+                json.dump({"last_updated": None, "posts": []}, f, indent=2)
+    except Exception:
+        pass
+
+
+def _load_linkedin_calendar():
+    _ensure_linkedin_files()
+    with open(LINKEDIN_CALENDAR_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_linkedin_calendar(payload):
+    _ensure_linkedin_files()
+    with open(LINKEDIN_CALENDAR_FILE, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+def _load_linkedin_engagement():
+    _ensure_linkedin_files()
+    try:
+        with open(LINKEDIN_ENGAGEMENT_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"last_updated": None, "posts": []}
+
+
 VALID_MESSAGE_SOURCES = {'agent', 'job'}
 VALID_MESSAGE_LEVELS = {'info', 'warn', 'error'}
 VALID_MESSAGE_KINDS = {
@@ -134,6 +173,7 @@ MAX_MESSAGE_BODY_LEN = 10000
 MAX_MESSAGE_META_JSON_LEN = 20000
 
 _message_center_db_initialized = False
+_usage_db_initialized = False
 RUN_ID_RE = re.compile(r'runId=([^\s]+)')
 AGENT_RE = re.compile(r'\[agent/([^\]]+)\]')
 
@@ -270,6 +310,126 @@ def _ensure_message_center_db():
     if not _message_center_db_initialized:
         init_message_center_db()
         _message_center_db_initialized = True
+
+
+def init_usage_db():
+    os.makedirs(os.path.dirname(MESSAGE_CENTER_DB), exist_ok=True)
+    _backup_db_before_migration(MESSAGE_CENTER_DB)
+    conn = _get_message_center_connection()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS usage_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                user_id TEXT,
+                user_name TEXT,
+                team_id TEXT,
+                team_name TEXT,
+                feature TEXT NOT NULL,
+                action TEXT NOT NULL,
+                session_id TEXT,
+                client TEXT,
+                meta_json TEXT
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_usage_created_at ON usage_events(created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_usage_feature ON usage_events(feature)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_usage_user_id ON usage_events(user_id)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _ensure_usage_db():
+    global _usage_db_initialized
+    if not _usage_db_initialized:
+        init_usage_db()
+        _usage_db_initialized = True
+
+
+def _normalize_usage_event_payload(payload):
+    if not isinstance(payload, dict):
+        return None, "JSON object body is required"
+
+    feature = payload.get("feature")
+    action = payload.get("action")
+    if not isinstance(feature, str) or not feature.strip():
+        return None, "feature must be a non-empty string"
+    if not isinstance(action, str) or not action.strip():
+        return None, "action must be a non-empty string"
+
+    def _clean(value, limit=255):
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        return text[:limit]
+
+    meta_json_str = None
+    meta_json = payload.get("meta_json")
+    if meta_json is not None:
+        if isinstance(meta_json, str):
+            try:
+                json.loads(meta_json)
+            except json.JSONDecodeError:
+                return None, "meta_json string must be valid JSON"
+            meta_json_str = meta_json
+        elif isinstance(meta_json, (dict, list)):
+            meta_json_str = json.dumps(meta_json)
+        else:
+            return None, "meta_json must be object, array, JSON string, or null"
+
+    return {
+        "created_at": datetime.now().isoformat(),
+        "user_id": _clean(payload.get("user_id")),
+        "user_name": _clean(payload.get("user_name")),
+        "team_id": _clean(payload.get("team_id")),
+        "team_name": _clean(payload.get("team_name")),
+        "feature": feature.strip()[:255],
+        "action": action.strip()[:255],
+        "session_id": _clean(payload.get("session_id"), 255),
+        "client": _clean(payload.get("client"), 255),
+        "meta_json": meta_json_str,
+    }, None
+
+
+def log_usage_event(payload):
+    normalized, error = _normalize_usage_event_payload(payload)
+    if error:
+        raise ValueError(error)
+    _ensure_usage_db()
+    conn = _get_message_center_connection()
+    try:
+        cursor = conn.execute(
+            """
+            INSERT INTO usage_events
+            (created_at, user_id, user_name, team_id, team_name, feature, action, session_id, client, meta_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                normalized["created_at"],
+                normalized["user_id"],
+                normalized["user_name"],
+                normalized["team_id"],
+                normalized["team_name"],
+                normalized["feature"],
+                normalized["action"],
+                normalized["session_id"],
+                normalized["client"],
+                normalized["meta_json"],
+            ),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM usage_events WHERE id = ?",
+            (cursor.lastrowid,),
+        ).fetchone()
+        return dict(row) if row else normalized
+    finally:
+        conn.close()
 
 def _normalize_message_event_payload(payload):
     """Validate and normalize incoming message-event payload."""
@@ -1597,6 +1757,11 @@ def calendar_page():
     return render_template('calendar.html')
 
 
+@app.route('/linkedin')
+def linkedin_page():
+    return render_template('linkedin.html')
+
+
 @app.route('/signals')
 def signals_page():
     return render_template('signals.html')
@@ -1663,6 +1828,16 @@ def usage_page():
     return render_template('usage.html')
 
 
+@app.route('/health')
+def health_page():
+    return render_template('health.html')
+
+
+@app.route('/onboarding')
+def onboarding_page():
+    return render_template('onboarding.html')
+
+
 @app.route('/api/status')
 def api_status():
     """API endpoint for dashboard data"""
@@ -1685,6 +1860,42 @@ def api_status():
             "reminders": {"reminders": [], "error": "API error"},
             "system": {"mac_mini": {"error": "API error"}, "phoenix_ai": {"error": "API error"}}
         }), 500
+
+
+@app.route('/api/linkedin/calendar')
+def api_linkedin_calendar():
+    try:
+        data = _load_linkedin_calendar()
+        data["engagement"] = _load_linkedin_engagement()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e), "posts": []}), 500
+
+
+@app.route('/api/linkedin/calendar/update', methods=['POST'])
+def api_linkedin_calendar_update():
+    payload = request.get_json(silent=True) or {}
+    post_id = payload.get("post_id")
+    scheduled_at = payload.get("scheduled_at")
+
+    if not post_id or not scheduled_at:
+        return jsonify({"error": "post_id and scheduled_at required"}), 400
+
+    try:
+        data = _load_linkedin_calendar()
+        updated = False
+        for post in data.get("posts", []):
+            if post.get("id") == post_id:
+                post["scheduled_at"] = scheduled_at
+                updated = True
+                break
+        if not updated:
+            return jsonify({"error": "post not found"}), 404
+        _save_linkedin_calendar(data)
+        data["engagement"] = _load_linkedin_engagement()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/team')
@@ -2822,6 +3033,144 @@ def api_alerts():
             "yellow": sum(1 for a in alerts if a["level"] == "YELLOW"),
         },
         "ts": now_iso,
+    })
+
+
+@app.route('/api/health/summary')
+def api_health_summary():
+    jobs, err = _get_cron_jobs_with_health()
+    if err:
+        return jsonify({"error": err}), 500
+
+    last_run_ms = max((j.get("last_run_ms") or 0 for j in jobs), default=0) or None
+    last_run = None
+    if last_run_ms:
+        try:
+            last_run = datetime.fromtimestamp(last_run_ms / 1000).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            last_run = None
+
+    summary = {
+        "green": sum(1 for j in jobs if j["color"] == "green"),
+        "yellow": sum(1 for j in jobs if j["color"] == "yellow"),
+        "red": sum(1 for j in jobs if j["color"] == "red"),
+        "orange": sum(1 for j in jobs if j["color"] == "orange"),
+        "disabled": sum(1 for j in jobs if j["color"] == "disabled"),
+        "running": sum(1 for j in jobs if j.get("is_running")),
+    }
+
+    return jsonify({
+        "ts": datetime.now().isoformat(),
+        "last_sync": last_run,
+        "last_sync_ms": last_run_ms,
+        "cron": {
+            "total": len(jobs),
+            "summary": summary,
+        },
+        "errors": summary["red"] + summary["orange"] + summary["yellow"],
+    })
+
+
+@app.route('/api/usage/events', methods=['GET', 'POST'])
+def api_usage_events():
+    if request.method == 'POST':
+        payload = request.get_json(silent=True) or {}
+        try:
+            event = log_usage_event(payload)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        return jsonify({"event": event})
+
+    limit = request.args.get('limit', 100)
+    try:
+        limit = max(1, min(int(limit), 500))
+    except Exception:
+        limit = 100
+
+    since = request.args.get('since')
+    since_dt = _parse_iso_timestamp(since)
+
+    _ensure_usage_db()
+    conn = _get_message_center_connection()
+    try:
+        query = "SELECT * FROM usage_events"
+        params = []
+        if since_dt:
+            query += " WHERE created_at >= ?"
+            params.append(since_dt.isoformat())
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        rows = conn.execute(query, params).fetchall()
+        events = [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+    return jsonify({"events": events, "count": len(events)})
+
+
+@app.route('/api/usage/summary')
+def api_usage_summary():
+    days = request.args.get('days', 7)
+    try:
+        days = max(1, min(int(days), 90))
+    except Exception:
+        days = 7
+
+    since_dt = datetime.now() - timedelta(days=days)
+    _ensure_usage_db()
+    conn = _get_message_center_connection()
+    try:
+        total = conn.execute(
+            "SELECT COUNT(*) as count FROM usage_events WHERE created_at >= ?",
+            (since_dt.isoformat(),),
+        ).fetchone()["count"]
+
+        feature_rows = conn.execute(
+            """
+            SELECT feature, COUNT(*) as count
+            FROM usage_events
+            WHERE created_at >= ?
+            GROUP BY feature
+            ORDER BY count DESC
+            """,
+            (since_dt.isoformat(),),
+        ).fetchall()
+        by_feature = [{"feature": r["feature"], "count": r["count"]} for r in feature_rows]
+
+        user_rows = conn.execute(
+            """
+            SELECT COALESCE(user_name, user_id, 'unknown') as user,
+                   COUNT(*) as count,
+                   MAX(created_at) as last_active
+            FROM usage_events
+            WHERE created_at >= ?
+            GROUP BY user
+            ORDER BY count DESC
+            """,
+            (since_dt.isoformat(),),
+        ).fetchall()
+        by_user = [
+            {
+                "user": r["user"],
+                "count": r["count"],
+                "last_active": r["last_active"],
+            }
+            for r in user_rows
+        ]
+
+        last_event = conn.execute(
+            "SELECT MAX(created_at) as last_event FROM usage_events"
+        ).fetchone()["last_event"]
+    finally:
+        conn.close()
+
+    return jsonify({
+        "window_days": days,
+        "since": since_dt.isoformat(),
+        "total": total,
+        "by_feature": by_feature,
+        "by_user": by_user,
+        "last_event": last_event,
     })
 
 

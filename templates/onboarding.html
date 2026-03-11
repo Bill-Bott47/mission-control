@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}JonathanOS — Onboarding{% endblock %}
+{% block head %}
+<style>
+.onboarding-page { padding: 24px; max-width: 980px; }
+.onboarding-header { margin-bottom: 20px; }
+.onboarding-title { font-size: 1.3rem; font-weight: 700; }
+.onboarding-sub { font-size: 0.85rem; color: var(--text-muted, #888); margin-top: 6px; }
+.step-grid { display: grid; gap: 12px; }
+.step-card {
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.step-card h3 { font-size: 0.92rem; margin: 0 0 8px; }
+.step-card p { font-size: 0.8rem; color: var(--text-muted, #888); line-height: 1.5; margin: 0 0 10px; }
+.step-card label { font-size: 0.75rem; color: var(--text-muted, #888); }
+.step-card input, .step-card select {
+  width: 100%;
+  margin-top: 6px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  color: #e8e8e8;
+  padding: 8px 10px;
+}
+.step-actions { display: flex; gap: 8px; margin-top: 16px; }
+.step-actions button {
+  background: #2ed573;
+  border: none;
+  color: #0b1a0f;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.step-actions .ghost {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #ddd;
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="onboarding-page">
+  <div class="onboarding-header">
+    <div class="onboarding-title">Welcome to JonathanOS</div>
+    <div class="onboarding-sub">Complete the setup to unlock dashboards, ops monitoring, and team workflows.</div>
+  </div>
+
+  <div class="step-grid">
+    <div class="step-card">
+      <h3>1) Connect your OpenClaw gateway</h3>
+      <p>Confirm the gateway is online and the JonathanOS server can read cron health + agent status.</p>
+      <label>Gateway URL</label>
+      <input type="text" placeholder="http://127.0.0.1:18789" />
+      <label style="margin-top:10px; display:block;">Gateway token</label>
+      <input type="password" placeholder="Paste your token" />
+    </div>
+
+    <div class="step-card">
+      <h3>2) Create your first team</h3>
+      <p>Teams organize permissions, feature flags, and onboarding progress.</p>
+      <label>Team name</label>
+      <input type="text" placeholder="Phoenix Marketing" />
+      <label style="margin-top:10px; display:block;">Primary owner</label>
+      <input type="text" placeholder="Jonathan" />
+    </div>
+
+    <div class="step-card">
+      <h3>3) Invite teammates</h3>
+      <p>Add teammates who need access to dashboards, reports, or operations alerts.</p>
+      <label>Invite email or handle</label>
+      <input type="text" placeholder="@teammate" />
+      <label style="margin-top:10px; display:block;">Role</label>
+      <select>
+        <option>Admin</option>
+        <option>Operator</option>
+        <option>Viewer</option>
+      </select>
+    </div>
+
+    <div class="step-card">
+      <h3>4) Enable features</h3>
+      <p>Pick which modules should be active for this team on day one.</p>
+      <label>Feature pack</label>
+      <select>
+        <option>Ops + Usage Tracking</option>
+        <option>Trading + Signals</option>
+        <option>Content + Calendar</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="step-actions">
+    <button>Save &amp; Continue</button>
+    <button class="ghost">Skip for now</button>
+  </div>
+</div>
+{% endblock %}
