@@ -1006,7 +1006,15 @@ def get_infrastructure_data():
     return infra_data
 
 def _parse_task_tracker():
-    """Parse TASK_TRACKER.md into structured task objects."""
+    """Parse TASK_TRACKER.md into structured task objects.
+
+    Handles both formats:
+      ## T-NNN: Title      (2-hash task header)
+      ### T-NNN: Title     (3-hash task header)
+    And both field formats:
+      **Field:** value      (bare bold)
+      - **Field:** value    (bullet bold)
+    """
     path = Path(TASK_TRACKER_FILE)
     default_payload = {
         "tasks": [],
@@ -1026,7 +1034,10 @@ def _parse_task_tracker():
             "error": f"Error reading TASK_TRACKER.md: {str(e)}",
         }
 
-    metadata_pattern = re.compile(r'^\s*-\s+\*\*([^*]+?)\s*:?\*\*\s*(.*)\s*$')
+    # Match both "**Field:** value" and "- **Field:** value" formats
+    metadata_pattern = re.compile(r'^\s*(?:-\s*)?\*\*([^*]+?)\s*:?\*\*\s*(.*)\s*$')
+    # Regex to detect task headers: ## T-NNN or ### T-NNN (with optional title)
+    task_header_re = re.compile(r'^(T-\d+)(?:[:\s]+(.+))?$')
 
     tasks = []
     in_code_fence = False
@@ -1044,14 +1055,24 @@ def _parse_task_tracker():
             if match:
                 key = match.group(1).strip().lower()
                 value = match.group(2).strip()
-                fields[key] = value
+                # Only set if key not already seen (first occurrence wins)
+                if key not in fields:
+                    fields[key] = value
 
         task_id = ""
         task_title = title.strip()
-        task_match = re.match(r'^(T-\d+)\s*:\s*(.+)$', task_title)
+        task_match = task_header_re.match(task_title)
         if task_match:
             task_id = task_match.group(1).strip()
-            task_title = task_match.group(2).strip()
+            inline_title = (task_match.group(2) or "").strip()
+            # Prefer **Title:** field if present, else use inline heading title
+            task_title = fields.get("title", inline_title or task_id)
+        else:
+            # Fallback: try to extract T-NNN from title string
+            id_match = re.match(r'(T-\d+)', task_title)
+            if id_match:
+                task_id = id_match.group(1)
+                task_title = fields.get("title", task_title)
 
         raw_text = '\n'.join([title] + lines).strip()
         search_text = ' '.join([
@@ -1060,7 +1081,9 @@ def _parse_task_tracker():
             fields.get("what", ""),
             fields.get("context", ""),
             fields.get("who", ""),
+            fields.get("owner", ""),
             fields.get("agent", ""),
+            fields.get("agents", ""),
             fields.get("status", ""),
             fields.get("priority", ""),
             raw_text,
@@ -1071,9 +1094,9 @@ def _parse_task_tracker():
             "title": task_title,
             "header": title.strip(),
             "section": section,
-            "agent": fields.get("agent", ""),
+            "agent": fields.get("agent", fields.get("agents", fields.get("owner", ""))),
             "what": fields.get("what", ""),
-            "who": fields.get("who", ""),
+            "who": fields.get("who", fields.get("owner", "")),
             "due": fields.get("due", ""),
             "status": fields.get("status", ""),
             "priority": fields.get("priority", ""),
@@ -1100,13 +1123,27 @@ def _parse_task_tracker():
         if in_code_fence:
             continue
 
-        if stripped.startswith("## "):
+        # Check for task headers: ## T-NNN or ### T-NNN
+        is_h2_task = stripped.startswith("## T-")
+        is_h3_task = stripped.startswith("### T-")
+
+        if stripped.startswith("## ") and not is_h2_task:
+            # Pure section header (no T-NNN), finalize any in-progress task
+            finalize_task(current_title, current_lines, current_section)
+            current_title = None
+            current_lines = []
             current_section = stripped[3:].strip()
             continue
 
-        if stripped.startswith("### "):
+        if is_h2_task:
             finalize_task(current_title, current_lines, current_section)
-            current_title = stripped[4:].strip()
+            current_title = stripped[3:].strip()  # strip "## "
+            current_lines = []
+            continue
+
+        if is_h3_task:
+            finalize_task(current_title, current_lines, current_section)
+            current_title = stripped[4:].strip()  # strip "### "
             current_lines = []
             continue
 
@@ -1123,24 +1160,52 @@ def _parse_task_tracker():
     }
 
 TEAM_FALLBACK = [
-    {"name": "Bill", "emoji": "🫡", "role": "Orchestrator", "notes": "Ops + strategy lead", "slug": "bill"},
-    {"name": "Bob", "emoji": "🔨", "role": "Builder", "notes": "Ship features + deploy", "slug": "bob"},
-    {"name": "Forge", "emoji": "⚒️", "role": "Code Review", "notes": "Security + QA gate", "slug": "forge"},
-    {"name": "Truth", "emoji": "👁️", "role": "Accountability", "notes": "Tracks commitments", "slug": "truth"},
-    {"name": "Shark", "emoji": "🦈", "role": "Trading", "notes": "Markets + bots", "slug": "shark"},
-    {"name": "ACE", "emoji": "💪", "role": "Fitness", "notes": "Training systems", "slug": "ace"},
-    {"name": "Sam", "emoji": "🎯", "role": "Strategy", "notes": "Business ops", "slug": "sam"},
-    {"name": "Marty", "emoji": "📣", "role": "Marketing", "notes": "Campaigns + growth", "slug": "marty"},
-    {"name": "Quill", "emoji": "✍️", "role": "Copywriting", "notes": "Scripts + threads", "slug": "quill"},
-    {"name": "Pixel", "emoji": "🎨", "role": "Design", "notes": "Visuals + brand", "slug": "pixel"},
-    {"name": "Scrub", "emoji": "🧽", "role": "Research", "notes": "Intel + sourcing", "slug": "scrub"},
-    {"name": "Scout", "emoji": "🔭", "role": "Opportunity", "notes": "Scouting + leads", "slug": "scout"},
-    {"name": "Content PM", "emoji": "🗓️", "role": "Content Pipeline", "notes": "Scheduling + approvals", "slug": "content-pm"},
-    {"name": "Librarian", "emoji": "📚", "role": "Knowledge", "notes": "Docs + memory", "slug": "librarian"},
-    {"name": "Music Biz", "emoji": "🎶", "role": "Music", "notes": "Curation + vibes", "slug": "music-biz"},
-    {"name": "Vitruviano PM", "emoji": "📱", "role": "Product", "notes": "App delivery", "slug": "vitruviano-pm"},
-    {"name": "Ops", "emoji": "🛠️", "role": "Infrastructure", "notes": "Systems + uptime", "slug": "ops"},
-    {"name": "SENTINEL", "emoji": "🛡️", "role": "Infrastructure Monitor", "notes": "pai Ollama", "slug": "sentinel"},
+    # Core Ops
+    {"name": "Bill", "emoji": "🫡", "role": "Orchestrator", "notes": "Ops + strategy lead", "slug": "bill", "model": "claude-sonnet", "status_group": "core"},
+    {"name": "Bob", "emoji": "🔨", "role": "Builder", "notes": "Ship features + deploy", "slug": "bob", "model": "codex", "status_group": "core"},
+    {"name": "Forge", "emoji": "⚒️", "role": "Code Review", "notes": "Security + QA gate — every line", "slug": "forge", "model": "sonnet", "status_group": "core"},
+    {"name": "Truth", "emoji": "👁️", "role": "Accountability", "notes": "Tracks commitments, verifies delivery every 4h", "slug": "truth", "model": "gemini-pro", "status_group": "core"},
+    {"name": "SENTINEL", "emoji": "🛡️", "role": "Infrastructure Monitor", "notes": "Provider drift detection, ROI analysis", "slug": "sentinel", "model": "ollama/llama3.1:8b", "status_group": "core"},
+    # Trading
+    {"name": "Shark", "emoji": "🦈", "role": "Trading", "notes": "Chart reads, bot fleet, trade calls", "slug": "shark", "model": "gemini-pro", "status_group": "trading"},
+    {"name": "Dolphin", "emoji": "🐬", "role": "Bot Fleet Monitor", "notes": "Monitors pai trading bots, alerts on failures", "slug": "dolphin", "model": "ollama/phi4", "status_group": "trading"},
+    # Research + Strategy
+    {"name": "Scout", "emoji": "🔭", "role": "Opportunity Scout", "notes": "New markets, clients, channels — early signals", "slug": "scout", "model": "gemini-pro", "status_group": "strategy"},
+    {"name": "Sam", "emoji": "🎯", "role": "Strategy", "notes": "Big ideas for Phoenix, leverage + sequencing", "slug": "sam", "model": "gpt", "status_group": "strategy"},
+    {"name": "Marty", "emoji": "📣", "role": "Marketing", "notes": "GTM plans, campaigns, can spawn Quill", "slug": "marty", "model": "minimax", "status_group": "strategy"},
+    {"name": "Trend", "emoji": "📈", "role": "Trend Researcher", "notes": "Weekly market sizing, weak signals, feeds Scout", "slug": "trend", "model": "gemini-pro", "status_group": "strategy"},
+    # Content
+    {"name": "Quill", "emoji": "✍️", "role": "Copywriting", "notes": "High-retention content from Marty briefs", "slug": "quill", "model": "minimax", "status_group": "content"},
+    {"name": "Pixel", "emoji": "🎨", "role": "Visual/Creative", "notes": "Marketing visuals, social posts, thumbnails", "slug": "pixel", "model": "minimax", "status_group": "content"},
+    {"name": "Scrub", "emoji": "🧽", "role": "Research", "notes": "Data gathering, formatting, Intel", "slug": "scrub", "model": "gemini-pro", "status_group": "content"},
+    {"name": "Content PM", "emoji": "🗓️", "role": "Content Pipeline", "notes": "Coordinates Quill, Pixel, Scrub, Marty", "slug": "content-pm", "model": "minimax", "status_group": "content"},
+    # Fitness
+    {"name": "ACE", "emoji": "💪", "role": "Fitness Coach", "notes": "Programming, meal plans, progress tracking", "slug": "ace", "model": "ollama/phi4", "status_group": "fitness"},
+    # Product
+    {"name": "Fern PM", "emoji": "📱", "role": "Product (Fern App)", "notes": "PM for fitness app, spawns Bob + Forge", "slug": "vitruviano-pm", "model": "gpt", "status_group": "product"},
+    {"name": "Canvas", "emoji": "🖼️", "role": "UI/UX Design", "notes": "Design specs before Bob codes. Product UI only.", "slug": "canvas", "model": "gpt", "status_group": "product"},
+    {"name": "Mobile", "emoji": "📲", "role": "React Native", "notes": "React Native + BLE for Fern. Spawned by Fern PM.", "slug": "mobile", "model": "codex", "status_group": "product"},
+    # Knowledge + Ops
+    {"name": "Librarian", "emoji": "📚", "role": "Knowledge", "notes": "Nightly channel review, docs + memory", "slug": "librarian", "model": "ollama/qwen2.5:32b", "status_group": "ops"},
+    {"name": "Ops", "emoji": "🛠️", "role": "Infrastructure", "notes": "System-level coordination, can spawn any agent", "slug": "ops", "model": "ollama/llama3.1:8b", "status_group": "ops"},
+    {"name": "INFRA", "emoji": "🔧", "role": "Infrastructure Care", "notes": "Weekly backup + performance validation", "slug": "infra", "model": "ollama/llama3.1:8b", "status_group": "ops"},
+    {"name": "Security", "emoji": "🔐", "role": "Security Audits", "notes": "OWASP reviews. Required before public deploys.", "slug": "security", "model": "sonnet", "status_group": "ops"},
+    {"name": "Identity", "emoji": "🆔", "role": "Auth + Credentials", "notes": "Agent auth, audit trails, credential lifecycle.", "slug": "identity", "model": "sonnet", "status_group": "ops"},
+    # Specialized
+    {"name": "Music Biz", "emoji": "🎶", "role": "Music Curation Biz", "notes": "Redstone + new client prospecting", "slug": "music-biz", "model": "minimax", "status_group": "specialized"},
+    {"name": "NUDGE", "emoji": "🧠", "role": "Behavioral Momentum", "notes": "Micro-sprints + momentum triggers. 'I should...' detector.", "slug": "nudge", "model": "ollama/phi4", "status_group": "specialized"},
+    {"name": "Analytics", "emoji": "📊", "role": "Analytics Reporter", "notes": "Cross-domain P&L, KPIs. Weekly → #command-center.", "slug": "analytics", "model": "gemini-pro", "status_group": "specialized"},
+    {"name": "Growth", "emoji": "🚀", "role": "Growth Experiments", "notes": "Viral loops, funnel optimization. On-demand.", "slug": "growth", "model": "gpt", "status_group": "specialized"},
+    {"name": "Feedback", "emoji": "📣", "role": "Feedback Synthesis", "notes": "Client/user feedback → product insights.", "slug": "feedback", "model": "minimax", "status_group": "specialized"},
+    {"name": "Evidence", "emoji": "📸", "role": "Evidence Collection", "notes": "Proof capture before 'complete'. Works with Forge.", "slug": "evidence", "model": "sonnet", "status_group": "specialized"},
+    {"name": "Orchestrator", "emoji": "🎬", "role": "Project Orchestrator", "notes": "PM → Arch → Dev → QA pipeline. Manages TASK_TRACKER.", "slug": "orchestrator", "model": "gpt", "status_group": "specialized"},
+    {"name": "Producer", "emoji": "🎥", "role": "Portfolio Coordination", "notes": "Daily brief. Coordinates Bryan/Alex/Bill.", "slug": "producer", "model": "gpt", "status_group": "specialized"},
+    # New agents (added T-148 overhaul 2026-03-10)
+    {"name": "Tuna", "emoji": "🐟", "role": "Signal Outcome Tracker", "notes": "Tracks whether Shark's calls won or lost. Bookkeeper of the Trading Pod.", "slug": "tuna", "model": "ollama/phi4", "status_group": "trading"},
+    {"name": "Usage Analyst", "emoji": "📉", "role": "AI Cost & Optimization", "notes": "Weekly AI cost report + optimization recommendations.", "slug": "usage-analyst", "model": "ollama/qwen2.5:32b", "status_group": "ops"},
+    {"name": "Vault Sync", "emoji": "🗄️", "role": "Memory Sync", "notes": "Nightly memory → Obsidian knowledge graph sync.", "slug": "vault-sync", "model": "ollama/llama3.1:8b", "status_group": "ops"},
+    {"name": "YouTube Agent", "emoji": "▶️", "role": "YouTube Research", "notes": "YouTube content research and strategy.", "slug": "youtube-agent", "model": "gemini-pro", "status_group": "content"},
+    {"name": "Forge Autorepair", "emoji": "🔩", "role": "Autonomous Repair", "notes": "Monitors Forge reviews, applies fixes to CAUTION/FAIL items autonomously.", "slug": "forge-autorepair", "model": "codex", "status_group": "ops"},
 ]
 
 TEAM_PROMPT_FILES = {
@@ -1158,6 +1223,24 @@ TEAM_PROMPT_FILES = {
     "music-biz": "music-biz-prompt.md",
     "vitruviano-pm": "vitruviano-pm-prompt.md",
     "sentinel": "sentinel-prompt.md",
+    "dolphin": "dolphin-prompt.md",
+    "trend": "trend-prompt.md",
+    "canvas": "canvas-prompt.md",
+    "mobile": "mobile-prompt.md",
+    "nudge": "nudge-prompt.md",
+    "analytics": "analytics-prompt.md",
+    "growth": "growth-prompt.md",
+    "feedback": "feedback-prompt.md",
+    "evidence": "evidence-prompt.md",
+    "orchestrator": "orchestrator-prompt.md",
+    "producer": "producer-prompt.md",
+    "infra": "infra-prompt.md",
+    "security": "security-prompt.md",
+    "identity": "identity-prompt.md",
+    "tuna": "tuna-prompt.md",
+    "usage-analyst": "usage-analyst-prompt.md",
+    "vault-sync": "vault-sync-prompt.md",
+    "forge-autorepair": "forge-autorepair-prompt.md",
 }
 
 TEAM_SOUL_EXCERPTS = {
@@ -1166,6 +1249,7 @@ TEAM_SOUL_EXCERPTS = {
     "forge": "QA and hardening specialist. Breaks assumptions, finds edge cases, and enforces release quality.",
     "truth": "Audit and verification lead. Checks claims against evidence and blocks false confidence.",
     "shark": "Markets operator. Generates directional setups with risk-aware entries and exits.",
+    "dolphin": "Bot fleet guardian. Monitors all trading bots on pai, escalates failures before losses compound.",
     "ace": "Health performance coach. Turns signals into practical training and nutrition actions.",
     "sam": "Business strategist. Prioritizes leverage, sequencing, and downside control.",
     "marty": "Growth engine. Crafts GTM and campaign messaging that converts.",
@@ -1173,12 +1257,30 @@ TEAM_SOUL_EXCERPTS = {
     "pixel": "Design lead. Translates strategy into visual systems that ship.",
     "scrub": "Research analyst. Surfaces signal through noisy sources fast.",
     "scout": "Opportunity scout. Finds new markets, clients, and channels early.",
+    "trend": "Trend researcher. Weekly market sizing and weak signal detection. Feeds Scout with early intel.",
     "content-pm": "Pipeline manager. Drives content from intake to approved publishing.",
     "librarian": "Knowledge curator. Keeps docs and memory consistent and findable.",
     "music-biz": "Curation operator. Balances brand fit with scalable process.",
-    "vitruviano-pm": "Product owner for AUREA. Converts fitness goals into scoped releases.",
+    "vitruviano-pm": "Product owner for Fern. Converts fitness goals into scoped releases.",
+    "canvas": "UI/UX specialist. Design specs before Bob codes. Product UI only — not marketing.",
+    "mobile": "React Native + BLE specialist for Fern. Spawned by Fern PM when mobile work needed.",
     "ops": "Infra operator. Keeps uptime, deployment, and observability stable.",
+    "infra": "Infrastructure care. Weekly backup/performance validation. Sunday night cron.",
     "sentinel": "Monitoring guardian. Detects provider drift and routes mitigation fast.",
+    "security": "Security engineer. OWASP reviews required before all public deploys.",
+    "identity": "Auth and credential lifecycle. Audit trails for all agent actions.",
+    "nudge": "Behavioral momentum engine. Detects 'I should...' patterns and turns them into micro-sprints.",
+    "analytics": "Cross-domain analytics. P&L, KPIs, usage patterns. Weekly #command-center report.",
+    "growth": "Growth hacker. Viral loops, funnel optimization, GTM experiments on demand.",
+    "feedback": "Feedback synthesizer. Turns client/user signals into actionable product insights.",
+    "evidence": "Evidence collector. Captures proof of completion before any task is marked done.",
+    "orchestrator": "Project orchestrator. Runs PM → Arch → Dev → QA pipeline. Manages TASK_TRACKER.",
+    "producer": "Studio producer. Daily brief. Coordinates Bryan, Alex, and Bill across all projects.",
+    "tuna": "Signal outcome tracker. Bookkeeper of the Trading Pod. Records whether Shark's calls won or lost.",
+    "usage-analyst": "AI cost analyst. Weekly usage + cost optimization reports across all model providers.",
+    "vault-sync": "Memory maintenance. Nightly review of activity, syncs key events to Obsidian knowledge graph.",
+    "youtube-agent": "YouTube content research. Trend identification, channel strategy, content opportunities.",
+    "forge-autorepair": "Autonomous repair coordinator. Monitors Forge reviews, applies fixes to CAUTION/FAIL items without human intervention.",
 }
 
 
@@ -1532,7 +1634,8 @@ def council_page():
 
 @app.route('/office')
 def office_page():
-    return redirect('/office/native')
+    """Office page with MC sidebar nav."""
+    return render_template('office_mc.html')
 
 
 @app.route('/office/native')
@@ -1542,6 +1645,17 @@ def office_native_page():
         VERSION_TIMESTAMP=int(time.time()),
         STAR_OFFICE_API_BASE="http://127.0.0.1:19000",
     )
+
+
+@app.route('/api/star-office-status')
+def api_star_office_status():
+    """Check if Star Office (port 19000) is reachable."""
+    try:
+        resp = requests.get("http://127.0.0.1:19000/", timeout=3)
+        online = resp.status_code < 500
+    except Exception:
+        online = False
+    return jsonify({"online": online, "port": 19000})
 
 
 @app.route('/usage')
@@ -2156,14 +2270,28 @@ def api_recent_activity():
 
 @app.route('/api/task-summary')
 def api_task_summary():
-    init_kanban_db()
-    conn = _kanban_conn()
-    rows = conn.execute("SELECT column_name, COUNT(*) as count FROM kanban_tasks GROUP BY column_name").fetchall()
-    conn.close()
-    counts = {row["column_name"]: row["count"] for row in rows}
+    """Task summary counts from TASK_TRACKER.md (same source as kanban)."""
+    data = _parse_task_tracker()
+    tasks = data.get("tasks", []) if isinstance(data, dict) else data
+    counts = {}
+    for t in tasks:
+        status = t.get("status", "UNKNOWN")
+        # Normalize to clean kanban column names
+        if "IN_PROGRESS" in status or "IN PROGRESS" in status:
+            col = "In Progress"
+        elif "BLOCKED" in status:
+            col = "Blocked"
+        elif "OVERDUE" in status:
+            col = "Overdue"
+        elif "OPEN" in status or status in ("", "UNKNOWN", "TODO"):
+            col = "Open"
+        else:
+            col = status.title()
+        counts[col] = counts.get(col, 0) + 1
     return jsonify({
         "counts": counts,
-        "total": sum(counts.values())
+        "total": len(tasks),
+        "source": "TASK_TRACKER.md",
     })
 
 
@@ -2456,8 +2584,12 @@ def _task_priority_rank(p: str) -> int:
     return 4
 
 
-def _parse_task_tracker():
-    """Parse TASK_TRACKER.md and return tasks relevant for ops panel."""
+def _parse_task_tracker_ops():
+    """Parse TASK_TRACKER.md fresh on every call (no caching) and return ALL non-done tasks.
+
+    Returns a plain list of dicts (used by ops dashboard, alerts, tasks-live endpoints).
+    For the full dict-based API (used by /api/tasks), use _parse_task_tracker().
+    """
     try:
         with open(TASK_TRACKER_FILE, 'r') as f:
             content = f.read()
@@ -2480,31 +2612,42 @@ def _parse_task_tracker():
             continue
         task_id = tid_match.group(1)
 
-        # Extract title - first line after T-NNN heading
-        title_match = re.search(r'T-\d+[:\s]*([^\n]*)', block)
-        title = title_match.group(1).strip().strip(':').strip() if title_match else task_id
+        # Extract title: prefer **Title:** field over inline heading title
+        title_field_match = re.search(r'\*\*Title:\*\*\s*([^\n]+)', block, re.IGNORECASE)
+        if title_field_match:
+            title = title_field_match.group(1).strip()
+        else:
+            # Fall back to inline heading: "T-NNN: Some Title" or "T-NNN  Some Title"
+            title_match = re.search(r'T-\d+[:\s]+([^\n]+)', block)
+            title = title_match.group(1).strip().strip(':').strip() if title_match else task_id
 
-        # Extract status
+        # Extract status — always from the file, never infer OVERDUE from age
         status_match = re.search(r'\*\*Status:\*\*\s*([^\n]+)', block, re.IGNORECASE)
         if not status_match:
-            # Try dash-based format: - **Status:** ...
+            status_match = re.search(r'-\s*\*\*Status:\*\*\s*([^\n]+)', block, re.IGNORECASE)
+        if not status_match:
             status_match = re.search(r'Status[:\s]+([^\n]+)', block, re.IGNORECASE)
         status_raw = status_match.group(1).strip() if status_match else "UNKNOWN"
-        # Normalize
-        status = status_raw.upper().replace('✅', '').strip()
-        # Remove trailing markdown
-        status = re.sub(r'\s*[\(\[].*', '', status).strip()
 
-        # Skip DONE tasks
-        if 'DONE' in status or '✅' in status_raw:
+        # Normalize: uppercase, strip emoji and trailing parens
+        status = status_raw.upper()
+        status = re.sub(r'✅.*', '', status).strip()
+        status = re.sub(r'\s*[\(\[].*', '', status).strip()
+        status = status.rstrip('.')
+
+        # Skip DONE/COMPLETE tasks
+        if any(x in status for x in ('DONE', 'COMPLETE', 'CLOSED', 'ARCHIVED')):
             continue
 
         # Extract priority
         priority_match = re.search(r'\*\*Priority:\*\*\s*([^\n]+)', block, re.IGNORECASE)
         if not priority_match:
+            priority_match = re.search(r'-\s*\*\*Priority:\*\*\s*([^\n]+)', block, re.IGNORECASE)
+        if not priority_match:
             priority_match = re.search(r'Priority[:\s]+([^\n]+)', block, re.IGNORECASE)
         priority_raw = priority_match.group(1).strip() if priority_match else "P3"
-        priority = priority_raw.strip()
+        # Clean priority value
+        priority = re.sub(r'\s*[\(\[].*', '', priority_raw).strip()
 
         # Extract created date
         created_match = re.search(r'\*\*Created:\*\*\s*(\d{4}-\d{2}-\d{2})', block, re.IGNORECASE)
@@ -2512,7 +2655,7 @@ def _parse_task_tracker():
             created_match = re.search(r'Created[:\s]+(\d{4}-\d{2}-\d{2})', block, re.IGNORECASE)
         created_str = created_match.group(1) if created_match else None
 
-        # Extract owner
+        # Extract owner/agent
         owner_match = re.search(r'\*\*(?:Owner|Agents?):\*\*\s*([^\n]+)', block, re.IGNORECASE)
         owner = owner_match.group(1).strip() if owner_match else "—"
 
@@ -2562,7 +2705,7 @@ def api_cron_health_live():
 @app.route('/api/tasks-live')
 def api_tasks_live():
     """Live task feed from TASK_TRACKER.md — surfaces OVERDUE, BLOCKED, P1 not DONE."""
-    tasks = _parse_task_tracker()
+    tasks = _parse_task_tracker_ops()
 
     # Filter to ops-relevant tasks: OVERDUE, BLOCKED, IN_PROGRESS P1, or OPEN P1
     ops_tasks = []
@@ -2637,7 +2780,7 @@ def api_alerts():
                 })
 
     # --- Task alerts ---
-    tasks = _parse_task_tracker()
+    tasks = _parse_task_tracker_ops()
     now = datetime.now()
     for task in tasks:
         status = task["status"]
@@ -4361,10 +4504,179 @@ def office_yesterday_memo():
     except Exception:
         pass
     return jsonify({'success': False})
+
+# ─── T-130: Agent Model Dispatch Layer ────────────────────────────────────────
+
+def _get_dispatch_router():
+    """Lazy-import the dispatch router so server still boots if agent-dispatch/ is missing."""
+    import sys, os
+    dispatch_dir = os.path.join(os.path.dirname(__file__), '..', 'agent-dispatch')
+    if dispatch_dir not in sys.path:
+        sys.path.insert(0, dispatch_dir)
+    from router import get_model, get_recent_log
+    return get_model, get_recent_log
+
+
+@app.route('/api/dispatch/recommend', methods=['POST'])
+def api_dispatch_recommend():
+    """
+    POST /api/dispatch/recommend
+    Body: {"agent_id": "shark", "task_text": "Fetch BTC price..."}
+    Response: {"model": "ollama/llama3.1:8b", "tier": "light", "reason": "...", "log_id": "...", "ts": "..."}
+
+    Routes an incoming agent task to the optimal model tier (heavy vs light)
+    based on task complexity and per-agent allocation policy.
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        agent_id = str(data.get('agent_id', 'unknown')).strip()
+        task_text = str(data.get('task_text', '')).strip()
+
+        if not task_text:
+            return jsonify({'error': 'task_text is required'}), 400
+
+        get_model, _ = _get_dispatch_router()
+        result = get_model(agent_id, task_text)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/dispatch/log', methods=['GET'])
+def api_dispatch_log():
+    """
+    GET /api/dispatch/log
+    Returns the last 50 dispatch decisions in reverse-chronological order.
+    Optional query param: ?limit=N (max 200)
+    """
+    try:
+        limit = min(int(request.args.get('limit', 50)), 200)
+        _, get_recent_log = _get_dispatch_router()
+        entries = get_recent_log(limit)
+        # Return newest first
+        return jsonify({
+            'count': len(entries),
+            'entries': list(reversed(entries)),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T-135 Phase C: Council Approvals Queue API
+# ─────────────────────────────────────────────────────────────────────────────
+
+_COUNCIL_DIR = Path("/Users/bill/.openclaw/workspace/council")
+_COUNCIL_APPROVALS_QUEUE = _COUNCIL_DIR / "approvals-queue.json"
+_COUNCIL_FEEDBACK_LOG = _COUNCIL_DIR / "feedback-log.json"
+
+
+def _read_council_queue() -> list:
+    """Read approvals-queue.json, return list (empty if missing/corrupt)."""
+    if not _COUNCIL_APPROVALS_QUEUE.exists():
+        return []
+    try:
+        with open(_COUNCIL_APPROVALS_QUEUE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, IOError):
+        return []
+
+
+def _write_council_queue(queue: list) -> None:
+    """Write approvals-queue.json atomically."""
+    tmp = str(_COUNCIL_APPROVALS_QUEUE) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(queue, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, str(_COUNCIL_APPROVALS_QUEUE))
+
+
+@app.route('/api/council/queue', methods=['GET'])
+def api_council_queue():
+    """
+    GET /api/council/queue
+    Returns all items with status=pending_approval from approvals-queue.json.
+    Optional query param: ?all=1 to return all items regardless of status.
+    """
+    try:
+        queue = _read_council_queue()
+        show_all = request.args.get('all', '').lower() in ('1', 'true', 'yes')
+        if not show_all:
+            queue = [item for item in queue if item.get('status') == 'pending_approval']
+        return jsonify({
+            "count": len(queue),
+            "items": queue,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/council/approve', methods=['POST'])
+def api_council_approve():
+    """
+    POST /api/council/approve
+    Body: {"id": "idea-001", "action": "approve" | "skip"}
+    Updates the status of the matching item in approvals-queue.json.
+    Also appends an entry to feedback-log.json.
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        idea_id = (payload.get("id") or "").strip()
+        action = (payload.get("action") or "").strip().lower()
+
+        if not idea_id:
+            return jsonify({"error": "id is required"}), 400
+        if action not in ("approve", "skip"):
+            return jsonify({"error": "action must be 'approve' or 'skip'"}), 400
+
+        queue = _read_council_queue()
+        matched = None
+        for item in queue:
+            if item.get("id") == idea_id:
+                item["status"] = "approved" if action == "approve" else "skipped"
+                item["actioned_at"] = datetime.now().isoformat()
+                matched = item
+                break
+
+        if matched is None:
+            return jsonify({"error": f"No item found with id={idea_id}"}), 404
+
+        _write_council_queue(queue)
+
+        # Append to feedback log
+        feedback_entry = {
+            "id": idea_id,
+            "title": matched.get("title", ""),
+            "action": action,
+            "verdict": matched.get("verdict", ""),
+            "avg_score": matched.get("avg_score", 0),
+            "actioned_at": matched.get("actioned_at"),
+        }
+        try:
+            if _COUNCIL_FEEDBACK_LOG.exists():
+                with open(_COUNCIL_FEEDBACK_LOG, "r", encoding="utf-8") as f:
+                    log_data = json.load(f)
+                if not isinstance(log_data, list):
+                    log_data = []
+            else:
+                log_data = []
+            log_data.append(feedback_entry)
+            tmp = str(_COUNCIL_FEEDBACK_LOG) + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(log_data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, str(_COUNCIL_FEEDBACK_LOG))
+        except Exception as log_err:
+            app.logger.warning(f"Could not update feedback log: {log_err}")
+
+        return jsonify({"success": True, "id": idea_id, "status": matched["status"]})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    port = 8889
+    port = 8888
     print("Starting JonathanOS...")
     _ensure_message_center_db()
     init_kanban_db()
