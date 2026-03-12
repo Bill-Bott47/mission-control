@@ -65,6 +65,48 @@
       font-family: 'Press Start 2P', monospace;
     }
 
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'VT323', monospace;
+      font-size: 14px;
+    }
+
+    .zoom-btn {
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: var(--text);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+    }
+
+    .zoom-btn:hover {
+      background: #374151;
+    }
+
+    .zoom-slider {
+      width: 100px;
+      accent-color: var(--accent);
+    }
+
+    #scene-wrapper {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #scene {
+      transform-origin: center center;
+      transition: transform 0.2s ease;
+    }
+
     .container {
       display: grid;
       grid-template-columns: 1fr 340px;
@@ -321,14 +363,22 @@
       <span>PHOENIX HQ // eBOY OFFICE</span>
       <span class="status-pill" id="sync-pill">SYNC: --</span>
     </div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="changeZoom(-0.1)">-</button>
+      <input type="range" class="zoom-slider" id="zoom-slider" min="0.5" max="2" step="0.1" value="1" oninput="setZoom(this.value)">
+      <button class="zoom-btn" onclick="changeZoom(0.1)">+</button>
+      <span id="zoom-level">100%</span>
+    </div>
     <div class="status-pill">ISOMETRIC GRID: 16px</div>
   </header>
 
   <div class="container">
     <div id="viewport">
-      <canvas id="scene"></canvas>
-      <svg id="comms-layer"></svg>
-      <div id="agent-layer"></div>
+      <div id="scene-wrapper">
+        <canvas id="scene"></canvas>
+        <svg id="comms-layer"></svg>
+        <div id="agent-layer"></div>
+      </div>
       <div id="tooltip"></div>
       <div class="hud">
         <button id="refresh">REFRESH</button>
@@ -366,6 +416,25 @@
   </div>
 
   <script>
+    // Zoom controls
+    let currentZoom = 1;
+    const sceneWrapper = document.getElementById('scene-wrapper');
+    const zoomSlider = document.getElementById('zoom-slider');
+    const zoomLevel = document.getElementById('zoom-level');
+
+    function setZoom(zoom) {
+      currentZoom = parseFloat(zoom);
+      sceneWrapper.style.transform = `scale(${currentZoom})`;
+      zoomSlider.value = currentZoom;
+      zoomLevel.textContent = Math.round(currentZoom * 100) + '%';
+    }
+
+    function changeZoom(delta) {
+      let newZoom = currentZoom + delta;
+      newZoom = Math.max(0.5, Math.min(2, newZoom));
+      setZoom(newZoom);
+    }
+
     const canvas = document.getElementById('scene');
     const ctx = canvas.getContext('2d');
     const agentLayer = document.getElementById('agent-layer');
