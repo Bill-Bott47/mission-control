@@ -97,14 +97,10 @@
       width: 100%;
       height: 100%;
       overflow: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
-    #scene {
-      transform-origin: center center;
-      transition: transform 0.2s ease;
+    #viewport {
+      zoom: var(--zoom, 1);
     }
 
     .container {
@@ -418,20 +414,20 @@
   <script>
     // Zoom controls
     let currentZoom = 1;
-    const sceneWrapper = document.getElementById('scene-wrapper');
+    const viewport = document.getElementById('viewport');
     const zoomSlider = document.getElementById('zoom-slider');
     const zoomLevel = document.getElementById('zoom-level');
 
     function setZoom(zoom) {
       currentZoom = parseFloat(zoom);
-      sceneWrapper.style.transform = `scale(${currentZoom})`;
+      viewport.style.setProperty('--zoom', currentZoom);
       zoomSlider.value = currentZoom;
       zoomLevel.textContent = Math.round(currentZoom * 100) + '%';
     }
 
     function changeZoom(delta) {
       let newZoom = currentZoom + delta;
-      newZoom = Math.max(0.5, Math.min(2, newZoom));
+      newZoom = Math.max(0.5, Math.min(1.5, newZoom));
       setZoom(newZoom);
     }
 
