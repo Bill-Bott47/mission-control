@@ -1799,8 +1799,8 @@ def council_page():
 
 @app.route('/office')
 def office_page():
-    """Office page with MC sidebar nav."""
-    return render_template('office_mc.html')
+    """eBoy Office with MC sidebar nav."""
+    return render_template('eboy_office_mc.html')
 
 
 @app.route('/office/native')
@@ -3289,6 +3289,49 @@ def api_usage_minimax():
             "coding_plan": None,
             "payg": {"configured": bool(payg_key)},
         }), 500
+
+
+@app.route('/api/usage/minimax/payg')
+def api_usage_minimax_payg():
+    """MiniMax PAYG local spend meter (T-160). Reads ops/minimax-payg-spend.json."""
+    import subprocess
+    spend_file = Path("/Users/bill/.openclaw/workspace/ops/minimax-payg-spend.json")
+    data = {}
+    if spend_file.exists():
+        try:
+            data = json.loads(spend_file.read_text())
+        except (json.JSONDecodeError, OSError) as e:
+            return jsonify({"error": str(e)}), 500
+    else:
+        # Run meter on-demand if file doesn't exist
+        try:
+            result = subprocess.run(
+                ["python3", "/Users/bill/.openclaw/workspace/scripts/minimax_payg_meter.py"],
+                capture_output=True, text=True, timeout=30
+            )
+            if spend_file.exists():
+                data = json.loads(spend_file.read_text())
+        except Exception as e:
+            return jsonify({"error": str(e), "note": "Run scripts/minimax_payg_meter.py manually"}), 500
+
+    from datetime import datetime, timezone
+    current_month = datetime.now(timezone.utc).strftime('%Y-%m')
+    mtd = data.get('monthly', {}).get(current_month, {})
+    return jsonify({
+        "month": current_month,
+        "month_to_date": {
+            "cost": mtd.get('cost', 0),
+            "calls": mtd.get('calls', 0),
+            "input_tokens": mtd.get('input_tokens', 0),
+            "output_tokens": mtd.get('output_tokens', 0),
+            "budget": mtd.get('budget', 10.0),
+            "pct_used": mtd.get('pct_used', 0),
+        },
+        "alert_fired": data.get('alert_fired', False),
+        "alert_threshold_pct": data.get('alert_threshold_pct', 80),
+        "last_updated": data.get('last_updated'),
+        "daily_breakdown": sorted(data.get('daily', {}).values(), key=lambda x: x['date'])[-7:],  # last 7 days
+    })
 
 
 @app.route('/api/usage/channels')

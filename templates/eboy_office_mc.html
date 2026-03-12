@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}JonathanOS — eBoy Office{% endblock %}
+{% block head %}
+<style>
+.office-frame-wrapper {
+    width: 100%;
+    height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+}
+.office-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--surface, #1a1a2e);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 12px;
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+.office-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    flex-shrink: 0;
+}
+.office-iframe {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: #1a1a2e;
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="office-frame-wrapper">
+    <div class="office-status-bar">
+        <span class="office-status-dot" id="office-status-dot"></span>
+        <span id="office-status-text">eBoy Office — Live Agent Visualization</span>
+        <span style="margin-left: auto;">
+            <a href="/office/native" style="color: #60a5fa; text-decoration: none;">Star Office ↗</a>
+        </span>
+    </div>
+    <iframe src="/static/eboy-office/index.html" class="office-iframe" id="office-iframe"></iframe>
+</div>
+{% endblock %}

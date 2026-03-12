@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phoenix eBoy Office — Agent Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f1a;
+      --panel: #111827;
+      --panel-2: #0f172a;
+      --grid: #141c2e;
+      --accent: #5eead4;
+      --accent-2: #f43f5e;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --working: #22c55e;
+      --idle: #f59e0b;
+      --error: #ef4444;
+      --offline: #64748b;
+      --shadow: #030712;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 800px at 70% 0%, #15203f 0%, var(--bg) 45%, #070a12 100%);
+      color: var(--text);
+      font-family: 'VT323', monospace;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: linear-gradient(90deg, #0b0f1a, #0b1224 60%, #0b0f1a);
+      border-bottom: 1px solid #1f2937;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 11px;
+    }
+
+    header .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .status-pill {
+      padding: 6px 10px;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      font-size: 10px;
+      color: var(--muted);
+      font-family: 'Press Start 2P', monospace;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      height: 100%;
+    }
+
+    #viewport {
+      position: relative;
+      padding: 16px;
+    }
+
+    #scene {
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+          0deg,
+          rgba(255,255,255,0.03),
+          rgba(255,255,255,0.03) 1px,
+          transparent 1px,
+          transparent 16px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          rgba(255,255,255,0.03),
+          rgba(255,255,255,0.03) 1px,
+          transparent 1px,
+          transparent 16px
+        );
+      border: 1px solid #1f2937;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4), inset 0 0 40px rgba(94,234,212,0.04);
+    }
+
+    #comms-layer {
+      position: absolute;
+      inset: 16px;
+      pointer-events: none;
+    }
+
+    #agent-layer {
+      position: absolute;
+      inset: 16px;
+      pointer-events: none;
+    }
+
+    .agent {
+      position: absolute;
+      width: 52px;
+      height: 62px;
+      pointer-events: auto;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      image-rendering: pixelated;
+      transition: transform 0.25s ease, filter 0.25s ease;
+    }
+
+    .agent:hover {
+      transform: translateY(-6px) scale(1.05);
+      filter: drop-shadow(0 8px 14px rgba(0,0,0,0.65));
+    }
+
+    .agent .sprite {
+      width: 40px;
+      height: 40px;
+      background-size: cover;
+      image-rendering: pixelated;
+      filter: drop-shadow(0 6px 0 rgba(0,0,0,0.6));
+    }
+
+    .agent .label {
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--text);
+      text-shadow: 0 2px 0 #000;
+      white-space: nowrap;
+    }
+
+    .agent .status-dot {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      border: 1px solid #0b0f1a;
+      box-shadow: 0 0 6px rgba(0,0,0,0.6);
+    }
+
+    .agent .typing {
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 3px;
+    }
+
+    .agent .typing span {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: blink 1.2s infinite ease-in-out;
+    }
+
+    .agent .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .agent .typing span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.2; }
+      40% { opacity: 1; }
+    }
+
+    .agent-layer--refresh .agent {
+      animation: pop 0.35s ease;
+    }
+
+    @keyframes pop {
+      0% { transform: translateY(8px) scale(0.9); opacity: 0.2; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    #tooltip {
+      position: absolute;
+      padding: 8px 10px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text);
+      pointer-events: none;
+      z-index: 10;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      max-width: 220px;
+    }
+
+    #tooltip.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    #panel {
+      background: linear-gradient(180deg, #0f172a, #0b1120 45%, #0b0f1a 100%);
+      border-left: 1px solid #1f2937;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    #panel h2 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 12px;
+      margin: 0;
+      color: var(--accent);
+    }
+
+    .panel-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.4);
+    }
+
+    .panel-card .title {
+      font-size: 20px;
+      margin-bottom: 8px;
+      color: #f8fafc;
+    }
+
+    .panel-card .meta {
+      font-size: 16px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      font-size: 15px;
+    }
+
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend i {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .hud {
+      position: absolute;
+      bottom: 22px;
+      left: 26px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid #1f2937;
+      padding: 10px 14px;
+      border-radius: 10px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 15px;
+      pointer-events: auto;
+    }
+
+    .hud button {
+      background: var(--accent);
+      color: #0b0f1a;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #0b3c38;
+    }
+
+    .hud button:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #0b3c38;
+    }
+
+    .hud .sync {
+      color: var(--muted);
+    }
+
+    .footnote {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .neon-sign {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+      color: #38bdf8;
+      text-shadow: 0 0 8px rgba(56,189,248,0.8);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span>PHOENIX HQ // eBOY OFFICE</span>
+      <span class="status-pill" id="sync-pill">SYNC: --</span>
+    </div>
+    <div class="status-pill">ISOMETRIC GRID: 16px</div>
+  </header>
+
+  <div class="container">
+    <div id="viewport">
+      <canvas id="scene"></canvas>
+      <svg id="comms-layer"></svg>
+      <div id="agent-layer"></div>
+      <div id="tooltip"></div>
+      <div class="hud">
+        <button id="refresh">REFRESH</button>
+        <div class="sync" id="sync-time">Last sync: --</div>
+        <div class="neon-sign">PHX//ACTIVE</div>
+      </div>
+    </div>
+
+    <aside id="panel">
+      <h2>AGENT CONSOLE</h2>
+      <div class="panel-card" id="agent-card">
+        <div class="title">Select an agent</div>
+        <div class="meta">Click any avatar on the floor.</div>
+        <div class="footnote">Status, current task, project, and recent activity will appear here.</div>
+      </div>
+
+      <div class="panel-card">
+        <div class="title">Status Legend</div>
+        <div class="legend">
+          <span><i style="background: var(--working)"></i>Working</span>
+          <span><i style="background: var(--idle)"></i>Idle</span>
+          <span><i style="background: var(--error)"></i>Error</span>
+          <span><i style="background: var(--offline)"></i>Offline</span>
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <div class="title">Room Notes</div>
+        <div class="footnote">
+          Zones map to live projects (Trading, Atlas, Phoenix, Ops). CRT glow, neon rails, whiteboards, and cafe bar
+          keep the room humming. Refresh to simulate shift changes.
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+    const agentLayer = document.getElementById('agent-layer');
+    const commsLayer = document.getElementById('comms-layer');
+    const tooltip = document.getElementById('tooltip');
+
+    const palette = {
+      floorA: '#1f2a44',
+      floorB: '#23304d',
+      wall: '#1e293b',
+      wallLite: '#2b3a59',
+      deskTop: '#64748b',
+      deskSide: '#475569',
+      deskFront: '#334155',
+      neon: '#5eead4',
+      neonPink: '#f43f5e',
+      neonBlue: '#38bdf8',
+      plant: '#22c55e',
+      screen: '#0ea5e9',
+      chair: '#0f172a',
+      chairLite: '#1f2937',
+      coffee: '#c084fc',
+      board: '#38bdf8',
+    };
+
+    const tile = { w: 32, h: 16, z: 12 };
+
+    const zones = [
+      { name: 'TRADING', x: [0, 6], y: [0, 4], color: '#1f4d3f' },
+      { name: 'ATLAS', x: [7, 12], y: [0, 4], color: '#1f3d5a' },
+      { name: 'PHOENIX', x: [0, 6], y: [5, 9], color: '#3b1f3f' },
+      { name: 'OPS', x: [7, 12], y: [5, 9], color: '#2e2a4e' },
+      { name: 'LABS', x: [13, 17], y: [0, 9], color: '#3a2e18' },
+    ];
+
+    function isoToScreen(x, y, z = 0) {
+      return {
+        x: (x - y) * tile.w / 2,
+        y: (x + y) * tile.h / 2 - z * tile.z,
+      };
+    }
+
+    function blendColor(base, overlay, amount = 0.4) {
+      const hex = (c) => parseInt(c.replace('#', ''), 16);
+      const b = hex(base);
+      const o = hex(overlay);
+      const br = (b >> 16) & 255;
+      const bg = (b >> 8) & 255;
+      const bb = b & 255;
+      const or = (o >> 16) & 255;
+      const og = (o >> 8) & 255;
+      const ob = o & 255;
+      const r = Math.round(br * (1 - amount) + or * amount);
+      const g = Math.round(bg * (1 - amount) + og * amount);
+      const b2 = Math.round(bb * (1 - amount) + ob * amount);
+      return `rgb(${r},${g},${b2})`;
+    }
+
+    function zoneAt(x, y) {
+      return zones.find((zone) => x >= zone.x[0] && x <= zone.x[1] && y >= zone.y[0] && y <= zone.y[1]);
+    }
+
+    function drawTile(x, y, color) {
+      const p = isoToScreen(x, y, 0);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + tile.w / 2, p.y + tile.h / 2);
+      ctx.lineTo(p.x, p.y + tile.h);
+      ctx.lineTo(p.x - tile.w / 2, p.y + tile.h / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawBlock(x, y, z, w, d, h, colors) {
+      const top = isoToScreen(x, y, z + h);
+      const left = isoToScreen(x, y + d, z);
+      const right = isoToScreen(x + w, y, z);
+
+      ctx.fillStyle = colors.top;
+      ctx.beginPath();
+      ctx.moveTo(top.x, top.y);
+      ctx.lineTo(top.x + tile.w * w / 2, top.y + tile.h * w / 2);
+      ctx.lineTo(top.x + tile.w * (w - d) / 2, top.y + tile.h * (w + d) / 2);
+      ctx.lineTo(top.x - tile.w * d / 2, top.y + tile.h * d / 2);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = colors.left;
+      ctx.beginPath();
+      ctx.moveTo(left.x, left.y);
+      ctx.lineTo(left.x + tile.w * w / 2, left.y + tile.h * w / 2);
+      ctx.lineTo(left.x + tile.w * w / 2, left.y + tile.h * w / 2 + tile.z * h);
+      ctx.lineTo(left.x, left.y + tile.z * h);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = colors.right;
+      ctx.beginPath();
+      ctx.moveTo(right.x, right.y);
+      ctx.lineTo(right.x - tile.w * d / 2, right.y + tile.h * d / 2);
+      ctx.lineTo(right.x - tile.w * d / 2, right.y + tile.h * d / 2 + tile.z * h);
+      ctx.lineTo(right.x, right.y + tile.z * h);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const deskMap = [
+      { x: 2, y: 2, w: 2, d: 1 },
+      { x: 5, y: 2, w: 2, d: 1 },
+      { x: 8, y: 2, w: 2, d: 1 },
+      { x: 11, y: 2, w: 2, d: 1 },
+      { x: 14, y: 2, w: 2, d: 1 },
+      { x: 2, y: 5, w: 2, d: 1 },
+      { x: 5, y: 5, w: 2, d: 1 },
+      { x: 8, y: 5, w: 2, d: 1 },
+      { x: 11, y: 5, w: 2, d: 1 },
+      { x: 14, y: 5, w: 2, d: 1 },
+      { x: 2, y: 8, w: 2, d: 1 },
+      { x: 5, y: 8, w: 2, d: 1 },
+      { x: 8, y: 8, w: 2, d: 1 },
+      { x: 11, y: 8, w: 2, d: 1 },
+      { x: 14, y: 8, w: 2, d: 1 },
+      { x: 1, y: 10, w: 2, d: 1 },
+      { x: 4, y: 10, w: 2, d: 1 },
+      { x: 7, y: 10, w: 2, d: 1 },
+      { x: 10, y: 10, w: 2, d: 1 },
+      { x: 13, y: 10, w: 2, d: 1 },
+    ];
+
+    function drawScene() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(canvas.width / (2 * devicePixelRatio), 80);
+
+      const floorW = 18;
+      const floorD = 12;
+
+      for (let x = 0; x < floorW; x++) {
+        for (let y = 0; y < floorD; y++) {
+          const zone = zoneAt(x, y);
+          const base = (x + y) % 2 === 0 ? palette.floorA : palette.floorB;
+          const color = zone ? blendColor(base, zone.color, 0.5) : base;
+          drawTile(x, y, color);
+        }
+      }
+
+      ctx.font = '10px "Press Start 2P"';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('TRADING', isoToScreen(1, 1).x - 10, isoToScreen(1, 1).y - 6);
+      ctx.fillStyle = '#5eead4';
+      ctx.fillText('ATLAS', isoToScreen(8, 1).x - 6, isoToScreen(8, 1).y - 6);
+      ctx.fillStyle = '#f43f5e';
+      ctx.fillText('PHOENIX', isoToScreen(1, 6).x - 12, isoToScreen(1, 6).y - 6);
+      ctx.fillStyle = '#a78bfa';
+      ctx.fillText('OPS', isoToScreen(8, 6).x - 4, isoToScreen(8, 6).y - 6);
+      ctx.fillStyle = '#facc15';
+      ctx.fillText('LABS', isoToScreen(14, 3).x - 4, isoToScreen(14, 3).y - 6);
+
+      drawBlock(-1, 0, 0, 1, floorD, 3, {
+        top: palette.wallLite,
+        left: palette.wall,
+        right: '#111827',
+      });
+      drawBlock(0, floorD, 0, floorW, 1, 3, {
+        top: palette.wallLite,
+        left: '#0f172a',
+        right: palette.wall,
+      });
+
+      deskMap.forEach((desk) => {
+        drawBlock(desk.x, desk.y, 0, desk.w, desk.d, 1, {
+          top: palette.deskTop,
+          left: palette.deskSide,
+          right: palette.deskFront,
+        });
+        drawBlock(desk.x + 0.2, desk.y + 0.2, 1, 0.6, 0.4, 1, {
+          top: palette.screen,
+          left: '#0b1224',
+          right: '#0b1224',
+        });
+        drawBlock(desk.x + 0.6, desk.y + 0.7, 0, 0.4, 0.4, 0.6, {
+          top: palette.chairLite,
+          left: palette.chair,
+          right: '#111827',
+        });
+
+        const glow = isoToScreen(desk.x + 0.4, desk.y + 0.2, 1.1);
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = palette.screen;
+        ctx.beginPath();
+        ctx.ellipse(glow.x, glow.y, 18, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // decor: plants, neon rails, coffee, whiteboards
+      drawBlock(2, 1, 0, 1, 1, 2, {
+        top: palette.neon,
+        left: '#0f766e',
+        right: '#0b3c38',
+      });
+      drawBlock(14, 2, 0, 1, 1, 2, {
+        top: palette.neonPink,
+        left: '#be123c',
+        right: '#881337',
+      });
+      drawBlock(3, 9, 0, 1, 1, 2, {
+        top: palette.plant,
+        left: '#166534',
+        right: '#14532d',
+      });
+      drawBlock(12, 9, 0, 1, 1, 2, {
+        top: palette.plant,
+        left: '#166534',
+        right: '#14532d',
+      });
+      drawBlock(6, 1, 0, 1, 1, 2, {
+        top: palette.plant,
+        left: '#166534',
+        right: '#14532d',
+      });
+      drawBlock(16, 3, 0, 1, 1, 2, {
+        top: palette.coffee,
+        left: '#7c3aed',
+        right: '#5b21b6',
+      });
+      drawBlock(16, 4, 0, 1, 1, 2, {
+        top: palette.coffee,
+        left: '#7c3aed',
+        right: '#5b21b6',
+      });
+      drawBlock(10, 0.5, 0.6, 2, 0.4, 0.8, {
+        top: palette.board,
+        left: '#0f172a',
+        right: '#0f172a',
+      });
+      drawBlock(4, 11, 0.6, 2, 0.4, 0.8, {
+        top: palette.board,
+        left: '#0f172a',
+        right: '#0f172a',
+      });
+
+      ctx.restore();
+    }
+
+    function createSprite(color, badge) {
+      const size = 12;
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      const cx = c.getContext('2d');
+      cx.fillStyle = '#0b0f1a';
+      cx.fillRect(0, 0, size, size);
+      cx.fillStyle = color;
+      cx.fillRect(2, 2, 8, 8);
+      cx.fillStyle = '#f8fafc';
+      cx.fillRect(4, 4, 2, 2);
+      cx.fillRect(7, 4, 2, 2);
+      cx.fillStyle = badge;
+      cx.fillRect(4, 8, 4, 2);
+      return c.toDataURL();
+    }
+
+    function statusColor(status) {
+      return {
+        working: 'var(--working)',
+        idle: 'var(--idle)',
+        error: 'var(--error)',
+        offline: 'var(--offline)',
+      }[status] || 'var(--idle)';
+    }
+
+    const agentProfiles = {
+      'Bob': {
+        project: 'Phoenix HQ',
+        statusOptions: ['working', 'working', 'idle'],
+        tasks: ['Implementing eBoy Office visual upgrade', 'Patching Atlas analytics pipeline', 'Prepping next Forge loop'],
+        activities: ['Syncing UI assets', 'Testing build in sandbox', 'Reviewing console errors'],
+      },
+      'Bill': {
+        project: 'Ops / AI',
+        statusOptions: ['working', 'working', 'idle'],
+        tasks: ['Orchestrating T-173 BitNet benchmark', 'Routing ops priorities', 'Sequencing T-170 remediation'],
+        activities: ['Dispatching sub-agents', 'Reviewing alerts', 'Syncing JonathanOS'],
+      },
+      'Forge': {
+        project: 'Build Review',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Reviewing T-155 funding harvester changes', 'Auditing eBoy Office changes', 'Running risk checklist'],
+        activities: ['Issuing CAUTION notes', 'Grading security surface', 'Verifying test logs'],
+      },
+      'Forge Autorepair': {
+        project: 'Build Review',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Applying CAUTION fixes from Forge review', 'Auto-patching lint failures', 'Normalizing config diffs'],
+        activities: ['Generating patch diff', 'Re-running lint', 'Preparing resubmit'],
+      },
+      'Truth': {
+        project: 'Accountability',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Verifying T-170/T-169 status', 'Checking commitment evidence', 'Drafting 8pm report'],
+        activities: ['Cross-checking logs', 'Tagging overdue tasks', 'Publishing audit'],
+      },
+      'SENTINEL': {
+        project: 'Infrastructure',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Monitoring provider drift', 'Scanning ROI anomalies', 'Running watchdog sweep'],
+        activities: ['Pinging gateways', 'Inspecting cron logs', 'Flagging spikes'],
+      },
+      'Shark': {
+        project: 'Trading',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Executing Hyperliquid morning read', 'Reviewing funding spreads', 'Drafting trade setup'],
+        activities: ['Charting BTC/ETH', 'Monitoring signal flow', 'Updating watchlist'],
+      },
+      'Dolphin': {
+        project: 'Trading Ops',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Monitoring bot fleet health', 'Validating service uptime', 'Escalating failed bots'],
+        activities: ['Polling pai services', 'Sending alerts', 'Syncing status board'],
+      },
+      'Tuna': {
+        project: 'Signal QA',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Scoring last 33 signals', 'Updating win/loss ledger', 'Auditing PnL delta'],
+        activities: ['Compiling outcomes', 'Tagging false positives', 'Updating dashboard'],
+      },
+      'ACE': {
+        project: 'Fitness',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Programming week 3 HIIT block', 'Reviewing nutrition logs', 'Adjusting recovery protocol'],
+        activities: ['Logging steps', 'Updating macro targets', 'Scheduling check-in'],
+      },
+      'Sam': {
+        project: 'Phoenix Growth',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Ideating new Phoenix offering', 'Sizing Atlas analytics market', 'Spec’ing pilot scope'],
+        activities: ['Drafting pitch outline', 'Reviewing comps', 'Syncing with Marty'],
+      },
+      'Marty': {
+        project: 'GTM',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Writing Atlas GTM narrative', 'Planning campaign beats', 'Positioning deck update'],
+        activities: ['Drafting headlines', 'Mapping channels', 'Reviewing creative'],
+      },
+      'Quill': {
+        project: 'Copy',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Drafting Phoenix brief copy', 'Polishing client script', 'Editing onboarding email'],
+        activities: ['Proofing cadence', 'Adjusting tone', 'Sending revisions'],
+      },
+      'Canvas': {
+        project: 'Product Design',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Designing JonathanOS widgets', 'Spec’ing dashboard layout', 'Refining interaction flow'],
+        activities: ['Annotating UI states', 'Aligning typography', 'Updating style tokens'],
+      },
+      'Pixel': {
+        project: 'Creative',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Rendering Phoenix sprite pack', 'Producing thumbnail tests', 'Polishing brand visuals'],
+        activities: ['Exporting assets', 'Color grading', 'Iterating variants'],
+      },
+      'Scrub': {
+        project: 'Research',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Cleaning Atlas datasets', 'Formatting research notes', 'Validating source links'],
+        activities: ['Normalizing CSVs', 'Tagging anomalies', 'Summarizing findings'],
+      },
+      'Scout': {
+        project: 'Competitive Intel',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Scanning competitor moves', 'Gathering weak signals', 'Briefing Sam on trends'],
+        activities: ['Monitoring socials', 'Collecting pricing intel', 'Drafting summary'],
+      },
+      'Content PM': {
+        project: 'Content Ops',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Scheduling LinkedIn calendar posts', 'Coordinating Quill + Pixel', 'Reviewing queue health'],
+        activities: ['Adjusting publish windows', 'Updating brief', 'Syncing approvals'],
+      },
+      'YouTube Agent': {
+        project: 'Content Research',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Researching Hyperliquid creators', 'Summarizing channel patterns', 'Drafting video angles'],
+        activities: ['Compiling notes', 'Ranking topics', 'Sharing insights'],
+      },
+      'Librarian': {
+        project: 'Memory',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Running memory hygiene', 'Cleaning docs', 'Indexing workspace files'],
+        activities: ['Updating logs', 'Archiving stale notes', 'Validating links'],
+      },
+      'Vault Sync': {
+        project: 'Memory Sync',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Syncing memory to Obsidian graph', 'Updating graph edges', 'Validating nightly export'],
+        activities: ['Pushing deltas', 'Checking node counts', 'Resolving conflicts'],
+      },
+      'Music Biz': {
+        project: 'Music Biz',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Prospecting Redstone targets', 'Curating label list', 'Drafting outreach beats'],
+        activities: ['Building playlist map', 'Tagging venues', 'Syncing targets'],
+      },
+      'Fern PM': {
+        project: 'Fern',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Planning mobile sprint', 'Triaging BLE bugs', 'Updating roadmap'],
+        activities: ['Syncing with MOBILE', 'Writing specs', 'Reviewing backlog'],
+      },
+      'Ops': {
+        project: 'Ops',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Release checklist for Telegram reader', 'Coordinating infra healthcheck', 'Syncing cron schedule'],
+        activities: ['Verifying services', 'Reviewing alerts', 'Updating runbook'],
+      },
+      'NUDGE': {
+        project: 'Momentum',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Triggering micro-sprint prompts', 'Resetting idle timers', 'Boosting execution cadence'],
+        activities: ['Sending nudges', 'Tracking responses', 'Adjusting cadence'],
+      },
+      'TREND': {
+        project: 'Intel',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Weekly market sizing scan', 'Surfacing weak signals', 'Feeding Scout with insights'],
+        activities: ['Updating briefs', 'Mapping growth vectors', 'Highlighting anomalies'],
+      },
+      'FEEDBACK': {
+        project: 'Insights',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Synthesizing client feedback', 'Tagging feature requests', 'Reporting top pain points'],
+        activities: ['Parsing call notes', 'Clustering themes', 'Sharing report'],
+      },
+      'ANALYTICS': {
+        project: 'KPIs',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Rolling up weekly KPIs', 'Reconciling P&L', 'Updating command-center charts'],
+        activities: ['Reviewing dashboards', 'Checking anomalies', 'Publishing report'],
+      },
+      'Usage Analyst': {
+        project: 'AI Spend',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Compiling weekly AI cost report', 'Benchmarking model efficiency', 'Recommending optimizations'],
+        activities: ['Auditing usage logs', 'Tagging spikes', 'Drafting summary'],
+      },
+      'GROWTH': {
+        project: 'Growth',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Designing viral loop test', 'Optimizing funnel conversion', 'Setting experiment KPI'],
+        activities: ['Drafting experiment brief', 'Coordinating with Marty', 'Tracking results'],
+      },
+      'INFRA': {
+        project: 'Infrastructure',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Running weekly backup validation', 'Reviewing storage health', 'Checking latency baseline'],
+        activities: ['Verifying Time Machine', 'Checking disk status', 'Logging metrics'],
+      },
+      'MOBILE': {
+        project: 'Fern',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Implementing React Native BLE', 'Optimizing Expo build', 'Debugging device pairing'],
+        activities: ['Testing devices', 'Updating hooks', 'Logging issues'],
+      },
+      'SECURITY': {
+        project: 'Security',
+        statusOptions: ['working', 'idle'],
+        tasks: ['OWASP review prep', 'Scanning auth surface', 'Drafting mitigation list'],
+        activities: ['Reviewing endpoints', 'Running checklists', 'Tagging risks'],
+      },
+      'ORCHESTRATOR': {
+        project: 'Program Mgmt',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Sequencing T-173 deliverables', 'Updating TASK_TRACKER', 'Assigning sub-agents'],
+        activities: ['Reviewing timelines', 'Flagging dependencies', 'Syncing owners'],
+      },
+      'PRODUCER': {
+        project: 'Daily Brief',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Coordinating daily brief', 'Aligning Bryan/Alex/Bill', 'Setting priorities'],
+        activities: ['Preparing agenda', 'Capturing updates', 'Publishing recap'],
+      },
+      'EVIDENCE': {
+        project: 'Proof',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Capturing build screenshots', 'Archiving proof artifacts', 'Syncing evidence logs'],
+        activities: ['Snapping screenshots', 'Uploading assets', 'Tagging deliverables'],
+      },
+      'IDENTITY': {
+        project: 'Access',
+        statusOptions: ['working', 'idle'],
+        tasks: ['Auditing credentials', 'Reviewing auth lifecycle', 'Monitoring access logs'],
+        activities: ['Rotating keys', 'Validating scopes', 'Logging audit'],
+      },
+    };
+
+    const fallbackAgents = [
+      { name: 'Bob', emoji: '🔨' },
+      { name: 'Bill', emoji: '🫡' },
+      { name: 'Forge', emoji: '⚒️' },
+      { name: 'Forge Autorepair', emoji: '🔩' },
+      { name: 'Truth', emoji: '👁️' },
+      { name: 'SENTINEL', emoji: '🛡️' },
+      { name: 'Shark', emoji: '🦈' },
+      { name: 'Dolphin', emoji: '🐬' },
+      { name: 'Tuna', emoji: '🐟' },
+      { name: 'ACE', emoji: '💪' },
+      { name: 'Sam', emoji: '🎯' },
+      { name: 'Marty', emoji: '📣' },
+      { name: 'Quill', emoji: '✍️' },
+      { name: 'Canvas', emoji: '🖼️' },
+      { name: 'Pixel', emoji: '🎨' },
+      { name: 'Scrub', emoji: '🧽' },
+      { name: 'Scout', emoji: '🔭' },
+      { name: 'Content PM', emoji: '🗓️' },
+      { name: 'YouTube Agent', emoji: '▶️' },
+      { name: 'Librarian', emoji: '📚' },
+      { name: 'Vault Sync', emoji: '🗄️' },
+      { name: 'Music Biz', emoji: '🎶' },
+      { name: 'Fern PM', emoji: '📱' },
+      { name: 'Ops', emoji: '🛠️' },
+      { name: 'NUDGE', emoji: '🧠' },
+      { name: 'TREND', emoji: '📈' },
+      { name: 'FEEDBACK', emoji: '📣' },
+      { name: 'ANALYTICS', emoji: '📊' },
+      { name: 'Usage Analyst', emoji: '📉' },
+      { name: 'GROWTH', emoji: '🚀' },
+      { name: 'INFRA', emoji: '🛠️' },
+      { name: 'MOBILE', emoji: '📲' },
+      { name: 'SECURITY', emoji: '🔐' },
+      { name: 'ORCHESTRATOR', emoji: '🎬' },
+      { name: 'PRODUCER', emoji: '🎥' },
+      { name: 'EVIDENCE', emoji: '📸' },
+      { name: 'IDENTITY', emoji: '🆔' },
+    ];
+
+    function parseRoster(text) {
+      const lines = text.split('\n').filter((l) => l.trim().startsWith('|'));
+      const agents = [];
+      lines.forEach((line) => {
+        if (line.includes('Task') || line.includes('---')) return;
+        const cols = line.split('|').map((c) => c.trim()).filter(Boolean);
+        if (!cols[1]) return;
+        const raw = cols[1].replace(/\*\*/g, '').trim();
+        const emojiMatch = raw.match(/\p{Emoji_Presentation}/gu) || [];
+        const emoji = emojiMatch.join('');
+        const name = raw.replace(/\p{Emoji_Presentation}/gu, '').trim().replace(/\s+/g, ' ');
+        if (name && !agents.find((a) => a.name === name)) {
+          agents.push({ name, emoji });
+        }
+      });
+      return agents;
+    }
+
+    async function loadAgents() {
+      try {
+        const res = await fetch('../../agents/ROSTER.md');
+        if (!res.ok) throw new Error('Roster not reachable');
+        const text = await res.text();
+        const roster = parseRoster(text);
+        if (roster.length) return roster;
+      } catch (err) {
+        console.warn('Roster fetch failed, using fallback list', err);
+      }
+      return fallbackAgents;
+    }
+
+    let currentAgents = [];
+
+    function randomFrom(list) {
+      return list[Math.floor(Math.random() * list.length)];
+    }
+
+    function renderAgents(agentList) {
+      agentLayer.innerHTML = '';
+      const positions = {};
+
+      agentList.forEach((agentData, index) => {
+        const desk = deskMap[index % deskMap.length];
+        const profile = agentProfiles[agentData.name] || {
+          project: 'Ops',
+          statusOptions: ['idle'],
+          tasks: ['Syncing with Bill'],
+          activities: ['Standing by'],
+        };
+        const status = randomFrom(profile.statusOptions);
+        const color = ['#22d3ee', '#f472b6', '#facc15', '#34d399', '#60a5fa'][index % 5];
+        const badge = ['#0ea5e9', '#f97316', '#14b8a6', '#eab308', '#ec4899'][index % 5];
+        const sprite = createSprite(color, badge);
+
+        const pos = isoToScreen(desk.x + 1, desk.y + 0.8, 1);
+        const agent = document.createElement('div');
+        agent.className = 'agent';
+        agent.style.left = `${pos.x + canvas.width / (2 * devicePixelRatio) - 22}px`;
+        agent.style.top = `${pos.y + 64}px`;
+        agent.style.zIndex = 100 + desk.y * 10 + desk.x;
+
+        const displayName = `${agentData.emoji ? agentData.emoji + ' ' : ''}${agentData.name}`;
+
+        agent.innerHTML = `
+          <div class="status-dot" style="background:${statusColor(status)}"></div>
+          ${status === 'working' ? '<div class="typing"><span></span><span></span><span></span></div>' : ''}
+          <div class="sprite" style="background-image:url(${sprite})"></div>
+          <div class="label">${displayName}</div>
+        `;
+
+        const currentTask = randomFrom(profile.tasks);
+        const activity = randomFrom(profile.activities);
+
+        agent.dataset.name = agentData.name;
+        agent.dataset.emoji = agentData.emoji || '';
+        agent.dataset.display = displayName;
+        agent.dataset.status = status;
+        agent.dataset.task = currentTask;
+        agent.dataset.activity = activity;
+        agent.dataset.project = profile.project;
+
+        agent.addEventListener('click', () => updatePanel(agent.dataset));
+        agent.addEventListener('mouseenter', (event) => showTooltip(event, agent.dataset));
+        agent.addEventListener('mouseleave', hideTooltip);
+
+        agentLayer.appendChild(agent);
+        positions[agentData.name] = {
+          x: parseFloat(agent.style.left) + 26,
+          y: parseFloat(agent.style.top) + 18,
+        };
+      });
+
+      drawConnections(positions);
+    }
+
+    function drawConnections(positions) {
+      const width = commsLayer.clientWidth;
+      const height = commsLayer.clientHeight;
+      commsLayer.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      commsLayer.innerHTML = '';
+
+      const connections = [
+        ['Bill', 'Ops'],
+        ['Bill', 'Forge'],
+        ['Bill', 'Truth'],
+        ['Shark', 'Dolphin'],
+        ['Shark', 'Tuna'],
+        ['Sam', 'Marty'],
+        ['Marty', 'Quill'],
+        ['Scout', 'TREND'],
+        ['Content PM', 'Pixel'],
+        ['Fern PM', 'MOBILE'],
+        ['SENTINEL', 'INFRA'],
+      ];
+
+      connections.forEach(([from, to]) => {
+        if (!positions[from] || !positions[to]) return;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', positions[from].x);
+        line.setAttribute('y1', positions[from].y);
+        line.setAttribute('x2', positions[to].x);
+        line.setAttribute('y2', positions[to].y);
+        line.setAttribute('stroke', 'rgba(94,234,212,0.35)');
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-dasharray', '6 6');
+        const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+        anim.setAttribute('attributeName', 'stroke-dashoffset');
+        anim.setAttribute('from', '12');
+        anim.setAttribute('to', '0');
+        anim.setAttribute('dur', '1.6s');
+        anim.setAttribute('repeatCount', 'indefinite');
+        line.appendChild(anim);
+        commsLayer.appendChild(line);
+      });
+    }
+
+    function updatePanel(data) {
+      const card = document.getElementById('agent-card');
+      card.innerHTML = `
+        <div class="title">${data.display}</div>
+        <div class="meta">Status: <span style="color:${statusColor(data.status)}">${data.status.toUpperCase()}</span></div>
+        <div class="footnote"><strong>Project:</strong> ${data.project}</div>
+        <div class="footnote" style="margin-top:8px;"><strong>Current Task:</strong> ${data.task}</div>
+        <div class="footnote" style="margin-top:8px;"><strong>Recent Activity:</strong> ${data.activity}</div>
+      `;
+    }
+
+    function showTooltip(event, data) {
+      tooltip.innerHTML = `
+        <strong>${data.display}</strong><br/>
+        ${data.project} · ${data.status.toUpperCase()}<br/>
+        ${data.task}
+      `;
+      tooltip.style.left = `${event.clientX + 12}px`;
+      tooltip.style.top = `${event.clientY - 20}px`;
+      tooltip.classList.add('show');
+    }
+
+    function hideTooltip() {
+      tooltip.classList.remove('show');
+    }
+
+    function syncTime() {
+      const now = new Date();
+      const stamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      document.getElementById('sync-time').textContent = `Last sync: ${stamp}`;
+      document.getElementById('sync-pill').textContent = `SYNC: ${stamp}`;
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * devicePixelRatio;
+      canvas.height = rect.height * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+      commsLayer.setAttribute('width', rect.width);
+      commsLayer.setAttribute('height', rect.height);
+      drawScene();
+      renderAgents(currentAgents);
+    }
+
+    async function init() {
+      currentAgents = await loadAgents();
+      resizeCanvas();
+      renderAgents(currentAgents);
+      syncTime();
+    }
+
+    document.getElementById('refresh').addEventListener('click', () => {
+      agentLayer.classList.add('agent-layer--refresh');
+      renderAgents(currentAgents);
+      syncTime();
+      setTimeout(() => agentLayer.classList.remove('agent-layer--refresh'), 500);
+    });
+
+    window.addEventListener('resize', resizeCanvas);
+
+    init();
+  </script>
+</body>
+</html>

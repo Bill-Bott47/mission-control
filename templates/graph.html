@@ -1,0 +1,740 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Graph — JonathanOS{% endblock %}
+
+{% block head %}
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.graph-shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 40px); /* subtract ticker */
+  overflow: hidden;
+  background: #0d0f14;
+}
+
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #13161e;
+  border-bottom: 1px solid #1e2330;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.graph-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c8d0e0;
+  white-space: nowrap;
+}
+
+.graph-search {
+  flex: 1;
+  min-width: 160px;
+  max-width: 280px;
+  padding: 6px 10px;
+  background: #1a1d28;
+  border: 1px solid #2a2f42;
+  border-radius: 6px;
+  color: #c8d0e0;
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+.graph-search:focus { border-color: #4a9eff; }
+.graph-search::placeholder { color: #505870; }
+
+.filter-group {
+  display: flex;
+  gap: 4px;
+}
+
+.filter-btn {
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid #2a2f42;
+  background: #1a1d28;
+  color: #8898b0;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.filter-btn:hover  { border-color: #4a9eff; color: #c8d0e0; }
+.filter-btn.active { background: #1d3458; border-color: #4a9eff; color: #4a9eff; }
+
+.graph-stats {
+  margin-left: auto;
+  font-size: 11px;
+  color: #505870;
+  white-space: nowrap;
+}
+.graph-stats span { color: #8898b0; }
+
+/* ── Main area ───────────────────────────────────────────────────────────── */
+.graph-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── SVG canvas ─────────────────────────────────────────────────────────── */
+#graph-canvas {
+  flex: 1;
+  background: #0d0f14;
+  cursor: grab;
+  user-select: none;
+}
+#graph-canvas:active { cursor: grabbing; }
+
+.graph-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #505870;
+  font-size: 13px;
+  pointer-events: none;
+}
+.graph-loading .spinner {
+  width: 32px; height: 32px;
+  border: 2px solid #1e2330;
+  border-top-color: #4a9eff;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  margin: 0 auto 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Sidebar panel ───────────────────────────────────────────────────────── */
+.graph-sidebar {
+  width: 0;
+  min-width: 0;
+  background: #13161e;
+  border-left: 1px solid #1e2330;
+  overflow: hidden;
+  transition: width .2s ease, min-width .2s ease;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.graph-sidebar.open {
+  width: 280px;
+  min-width: 280px;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid #1e2330;
+  flex-shrink: 0;
+}
+.sidebar-node-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c8d0e0;
+  word-break: break-word;
+}
+.sidebar-close {
+  cursor: pointer;
+  color: #505870;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color .15s;
+  flex-shrink: 0;
+}
+.sidebar-close:hover { color: #c8d0e0; }
+
+.sidebar-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  margin: 6px 14px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.sidebar-section {
+  padding: 10px 14px;
+  border-bottom: 1px solid #1a1d28;
+}
+.sidebar-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #505870;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin-bottom: 6px;
+}
+
+.sidebar-connections {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0 0 10px;
+}
+
+.conn-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: background .1s;
+}
+.conn-item:hover { background: #1a1d28; }
+.conn-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.conn-label {
+  font-size: 11px;
+  color: #8898b0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conn-rel {
+  font-size: 10px;
+  color: #3a4258;
+  flex-shrink: 0;
+}
+
+/* ── D3 elements ─────────────────────────────────────────────────────────── */
+.link-line {
+  stroke: #1e2a40;
+  stroke-opacity: .7;
+  stroke-width: 1;
+}
+.link-line.highlighted {
+  stroke: #4a9eff;
+  stroke-opacity: 1;
+  stroke-width: 1.5;
+}
+
+.node-circle {
+  stroke: transparent;
+  stroke-width: 2;
+  cursor: pointer;
+  transition: stroke .1s;
+}
+.node-circle:hover { stroke: #ffffff44; }
+.node-circle.selected { stroke: #fff; stroke-width: 2; }
+.node-circle.dimmed { opacity: .2; }
+.node-circle.search-match { stroke: #ffe066; stroke-width: 2.5; }
+
+.node-label {
+  font-size: 9px;
+  fill: #8898b0;
+  pointer-events: none;
+  font-family: system-ui, sans-serif;
+}
+.node-label.prominent { font-size: 10px; fill: #c8d0e0; }
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────── */
+.graph-tooltip {
+  position: fixed;
+  background: #1a1d28;
+  border: 1px solid #2a2f42;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #c8d0e0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .1s;
+  z-index: 9999;
+  max-width: 200px;
+}
+.graph-tooltip.visible { opacity: 1; }
+.graph-tooltip .tt-rel { color: #505870; font-size: 10px; margin-top: 2px; }
+
+/* ── Legend ──────────────────────────────────────────────────────────────── */
+.graph-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background: #13161ecc;
+  border: 1px solid #1e2330;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  color: #8898b0;
+}
+.legend-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .graph-sidebar.open { width: 100%; min-width: 100%; position: absolute; right: 0; top: 0; bottom: 0; z-index: 10; }
+  .graph-stats { display: none; }
+  .filter-btn { padding: 5px 8px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="graph-shell" id="graph-shell">
+
+  <!-- Toolbar -->
+  <div class="graph-toolbar">
+    <div class="graph-title">🕸️ Knowledge Graph</div>
+
+    <input
+      id="graph-search"
+      class="graph-search"
+      type="text"
+      placeholder="Search nodes…"
+      autocomplete="off"
+    />
+
+    <div class="filter-group">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="people">People</button>
+      <button class="filter-btn" data-filter="companies">Companies</button>
+      <button class="filter-btn" data-filter="concepts">Concepts</button>
+    </div>
+
+    <div class="graph-stats" id="graph-stats">
+      <span id="stat-nodes">—</span> nodes &nbsp;·&nbsp;
+      <span id="stat-edges">—</span> edges
+    </div>
+  </div>
+
+  <!-- Body: canvas + sidebar -->
+  <div class="graph-body" style="position:relative;">
+    <svg id="graph-canvas"></svg>
+
+    <div class="graph-loading" id="graph-loading">
+      <div class="spinner"></div>
+      Loading graph…
+    </div>
+
+    <div class="graph-sidebar" id="graph-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-node-name" id="sidebar-name">—</div>
+        <div class="sidebar-close" id="sidebar-close">✕</div>
+      </div>
+      <span class="sidebar-type-badge" id="sidebar-type-badge">—</span>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Degree</div>
+        <div id="sidebar-degree" style="font-size:12px;color:#8898b0;">—</div>
+      </div>
+      <div class="sidebar-section" id="sidebar-attrs-section" style="display:none;">
+        <div class="sidebar-section-title">Attributes</div>
+        <div id="sidebar-attrs" style="font-size:11px;color:#8898b0;word-break:break-word;"></div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Connections (<span id="sidebar-conn-count">0</span>)</div>
+      </div>
+      <div class="sidebar-connections" id="sidebar-connections"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="graph-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#4a9eff"></div>Person</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ff8c42"></div>Company</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div>Client</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a0a0b0"></div>Concept</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7bc67e"></div>Service</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ffd166"></div>Project</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="graph-tooltip" id="graph-tooltip"></div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let graphData     = null;   // {nodes, links}
+  let simulation    = null;
+  let svg           = null;
+  let gLinks        = null;
+  let gNodes        = null;
+  let zoom          = null;
+  let selectedNode  = null;
+  let currentFilter = 'all';
+  let searchTimer   = null;
+  let isSearchMode  = false;
+
+  const tooltip  = document.getElementById('graph-tooltip');
+  const sidebar  = document.getElementById('graph-sidebar');
+  const loading  = document.getElementById('graph-loading');
+  const statN    = document.getElementById('stat-nodes');
+  const statE    = document.getElementById('stat-edges');
+
+  // ── Fetch & render ───────────────────────────────────────────────────────
+  async function loadGraph(filterType, searchQuery) {
+    showLoading(true);
+    clearSidebar();
+    stopSimulation();
+
+    let url;
+    if (searchQuery) {
+      url = `/api/knowledge-graph/search?q=${encodeURIComponent(searchQuery)}`;
+      isSearchMode = true;
+    } else {
+      url = filterType && filterType !== 'all'
+        ? `/api/knowledge-graph?type=${filterType}`
+        : '/api/knowledge-graph';
+      isSearchMode = false;
+    }
+
+    try {
+      const res  = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      graphData = data;
+      updateStats(data.meta);
+      renderGraph(data);
+    } catch (err) {
+      showLoading(false);
+      console.error('Graph load error:', err);
+    }
+  }
+
+  // ── D3 render ────────────────────────────────────────────────────────────
+  function renderGraph(data) {
+    const canvas = document.getElementById('graph-canvas');
+    const W = canvas.clientWidth  || window.innerWidth  - 300;
+    const H = canvas.clientHeight || window.innerHeight - 80;
+
+    // Wipe previous
+    d3.select('#graph-canvas').selectAll('*').remove();
+
+    svg = d3.select('#graph-canvas')
+      .attr('width', W)
+      .attr('height', H);
+
+    // Defs: arrow marker
+    const defs = svg.append('defs');
+    defs.append('marker')
+      .attr('id', 'arrow')
+      .attr('viewBox', '0 -4 8 8')
+      .attr('refX', 12)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+        .attr('d', 'M0,-4L8,0L0,4')
+        .attr('fill', '#1e2a40');
+
+    // Zoom
+    zoom = d3.zoom()
+      .scaleExtent([0.05, 8])
+      .on('zoom', (event) => {
+        gContainer.attr('transform', event.transform);
+      });
+    svg.call(zoom);
+
+    const gContainer = svg.append('g').attr('class', 'graph-container');
+    gLinks = gContainer.append('g').attr('class', 'links');
+    gNodes = gContainer.append('g').attr('class', 'nodes');
+
+    // Clone nodes/links so D3 can mutate them
+    const nodes = data.nodes.map(d => ({ ...d }));
+    const links = data.links.map(d => ({ ...d }));
+
+    // Links
+    const linkSel = gLinks.selectAll('.link-line')
+      .data(links)
+      .join('line')
+        .attr('class', 'link-line')
+        .attr('marker-end', 'url(#arrow)');
+
+    // Node groups
+    const nodeSel = gNodes.selectAll('.node-g')
+      .data(nodes, d => d.id)
+      .join('g')
+        .attr('class', 'node-g')
+        .call(drag());
+
+    nodeSel.append('circle')
+      .attr('class', d => {
+        let cls = 'node-circle';
+        if (isSearchMode && d.matched) cls += ' search-match';
+        return cls;
+      })
+      .attr('r',    d => d.size)
+      .attr('fill', d => d.color)
+      .on('mouseover', onNodeHover)
+      .on('mousemove', onNodeMove)
+      .on('mouseout',  onNodeOut)
+      .on('click',     onNodeClick);
+
+    // Labels for high-degree nodes
+    nodeSel.append('text')
+      .attr('class', d => 'node-label' + (d.degree >= 5 ? ' prominent' : ''))
+      .attr('dy', d => d.size + 10)
+      .attr('text-anchor', 'middle')
+      .text(d => d.degree >= 3 ? (d.label.length > 18 ? d.label.slice(0, 16) + '…' : d.label) : '');
+
+    // Simulation
+    const chargeStrength = nodes.length > 100 ? -80 : -150;
+    simulation = d3.forceSimulation(nodes)
+      .force('link',   d3.forceLink(links).id(d => d.id).distance(60).strength(0.3))
+      .force('charge', d3.forceManyBody().strength(chargeStrength))
+      .force('center', d3.forceCenter(W / 2, H / 2))
+      .force('collide', d3.forceCollide(d => d.size + 4))
+      .on('tick', () => {
+        linkSel
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+        nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
+      })
+      .on('end', () => {
+        showLoading(false);
+        autoFit(gContainer, W, H);
+      });
+
+    // Show loading until simulation ends (with timeout safety)
+    setTimeout(() => showLoading(false), 5000);
+
+    // Store for sidebar click-to-zoom
+    window._graphNodes = nodes;
+    window._graphLinks = links;
+  }
+
+  function drag() {
+    return d3.drag()
+      .on('start', (event, d) => {
+        if (!event.active && simulation) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x; d.fy = d.y;
+      })
+      .on('drag', (event, d) => {
+        d.fx = event.x; d.fy = event.y;
+      })
+      .on('end', (event, d) => {
+        if (!event.active && simulation) simulation.alphaTarget(0);
+        d.fx = null; d.fy = null;
+      });
+  }
+
+  function autoFit(container, W, H) {
+    try {
+      const bounds = container.node().getBBox();
+      if (!bounds.width || !bounds.height) return;
+      const pad = 40;
+      const scale = Math.min(
+        (W - pad * 2) / bounds.width,
+        (H - pad * 2) / bounds.height,
+        2
+      );
+      const tx = W / 2 - scale * (bounds.x + bounds.width / 2);
+      const ty = H / 2 - scale * (bounds.y + bounds.height / 2);
+      svg.transition().duration(600)
+        .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+    } catch (_) {}
+  }
+
+  function stopSimulation() {
+    if (simulation) { simulation.stop(); simulation = null; }
+  }
+
+  // ── Tooltip ──────────────────────────────────────────────────────────────
+  function onNodeHover(event, d) {
+    tooltip.innerHTML = `<strong>${d.label}</strong><div class="tt-rel">${d.type} · ${d.degree} connections</div>`;
+    tooltip.classList.add('visible');
+    // Highlight connected links
+    if (gLinks) {
+      gLinks.selectAll('.link-line')
+        .classed('highlighted', l =>
+          (l.source && l.source.id === d.id) || (l.target && l.target.id === d.id));
+    }
+  }
+  function onNodeMove(event) {
+    tooltip.style.left = (event.clientX + 14) + 'px';
+    tooltip.style.top  = (event.clientY - 10) + 'px';
+  }
+  function onNodeOut() {
+    tooltip.classList.remove('visible');
+    if (gLinks) gLinks.selectAll('.link-line').classed('highlighted', false);
+  }
+
+  // ── Click / sidebar ──────────────────────────────────────────────────────
+  function onNodeClick(event, d) {
+    event.stopPropagation();
+    selectedNode = d;
+    showSidebar(d);
+  }
+
+  function showSidebar(d) {
+    sidebar.classList.add('open');
+    document.getElementById('sidebar-name').textContent = d.label;
+
+    const badge = document.getElementById('sidebar-type-badge');
+    badge.textContent = d.type;
+    badge.style.background = d.color + '22';
+    badge.style.color       = d.color;
+    badge.style.border      = `1px solid ${d.color}44`;
+
+    document.getElementById('sidebar-degree').textContent =
+      `${d.degree} direct connection${d.degree !== 1 ? 's' : ''}`;
+
+    // Attributes
+    const attrs    = d.attributes || {};
+    const attrKeys = Object.keys(attrs);
+    const attrSec  = document.getElementById('sidebar-attrs-section');
+    if (attrKeys.length) {
+      attrSec.style.display = '';
+      document.getElementById('sidebar-attrs').innerHTML =
+        attrKeys.map(k => `<div><strong>${k}:</strong> ${JSON.stringify(attrs[k]).replace(/^"|"$/g, '')}</div>`).join('');
+    } else {
+      attrSec.style.display = 'none';
+    }
+
+    // Connections
+    const links  = window._graphLinks || [];
+    const conns  = [];
+    links.forEach(l => {
+      const src = l.source.id || l.source;
+      const tgt = l.target.id || l.target;
+      if (src === d.id) conns.push({ name: tgt, rel: l.label, dir: 'out' });
+      if (tgt === d.id) conns.push({ name: src, rel: l.label, dir: 'in'  });
+    });
+
+    document.getElementById('sidebar-conn-count').textContent = conns.length;
+
+    // Get color for each connected node
+    const nodeMap = {};
+    (window._graphNodes || []).forEach(n => { nodeMap[n.id] = n; });
+
+    const connList = document.getElementById('sidebar-connections');
+    connList.innerHTML = conns.length === 0
+      ? '<div style="padding:8px 14px;font-size:11px;color:#3a4258;">No connections in current view</div>'
+      : conns.map(c => {
+          const color = (nodeMap[c.name] || {}).color || '#888';
+          return `<div class="conn-item" data-node="${escHtml(c.name)}">
+            <div class="conn-dot" style="background:${color}"></div>
+            <div class="conn-label">${escHtml(c.name)}</div>
+            <div class="conn-rel">${escHtml(c.rel)}</div>
+          </div>`;
+        }).join('');
+
+    // Click on connection → focus that node
+    connList.querySelectorAll('.conn-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const nid = el.getAttribute('data-node');
+        const node = (window._graphNodes || []).find(n => n.id === nid);
+        if (node) {
+          focusNode(node);
+          showSidebar(node);
+        }
+      });
+    });
+  }
+
+  function focusNode(node) {
+    if (!svg || !zoom || node.x == null) return;
+    const canvas = document.getElementById('graph-canvas');
+    const W = canvas.clientWidth;
+    const H = canvas.clientHeight;
+    const scale = 2;
+    const tx = W / 2 - scale * node.x;
+    const ty = H / 2 - scale * node.y;
+    svg.transition().duration(500)
+      .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+  }
+
+  function clearSidebar() {
+    sidebar.classList.remove('open');
+    selectedNode = null;
+    document.getElementById('sidebar-connections').innerHTML = '';
+  }
+
+  document.getElementById('sidebar-close').addEventListener('click', clearSidebar);
+
+  // Click canvas background → deselect
+  document.getElementById('graph-canvas').addEventListener('click', (e) => {
+    if (e.target.tagName === 'svg' || e.target.classList.contains('graph-container')) {
+      clearSidebar();
+    }
+  });
+
+  // ── Filter buttons ───────────────────────────────────────────────────────
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.getAttribute('data-filter');
+      // Clear search
+      document.getElementById('graph-search').value = '';
+      loadGraph(currentFilter, null);
+    });
+  });
+
+  // ── Search ───────────────────────────────────────────────────────────────
+  document.getElementById('graph-search').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    const q = e.target.value.trim();
+    if (!q) {
+      loadGraph(currentFilter, null);
+      return;
+    }
+    searchTimer = setTimeout(() => loadGraph(null, q), 350);
+  });
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  function updateStats(meta) {
+    if (!meta) return;
+    statN.textContent = meta.displayed_nodes;
+    statE.textContent = meta.displayed_edges;
+  }
+
+  // ── Loading indicator ─────────────────────────────────────────────────────
+  function showLoading(show) {
+    loading.style.display = show ? 'block' : 'none';
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function escHtml(str) {
+    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ── Resize ────────────────────────────────────────────────────────────────
+  window.addEventListener('resize', () => {
+    const canvas = document.getElementById('graph-canvas');
+    if (svg) {
+      svg.attr('width', canvas.clientWidth).attr('height', canvas.clientHeight);
+    }
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  loadGraph('all', null);
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}{% endblock %}

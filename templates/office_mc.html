@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}JonathanOS — Office{% endblock %}
+{% block head %}
+<style>
+.office-frame-wrapper {
+    width: 100%;
+    height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+}
+.office-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--surface, #1a1a2e);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 12px;
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+.office-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    flex-shrink: 0;
+}
+.office-status-dot.offline {
+    background: #ef4444;
+}
+.office-iframe {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: #1a1a2e;
+}
+.office-offline-msg {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: #9ca3af;
+    font-size: 14px;
+}
+.office-offline-msg .icon { font-size: 40px; }
+.office-offline-msg a {
+    color: #60a5fa;
+    text-decoration: underline;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="office-frame-wrapper">
+    <div class="office-status-bar">
+        <div class="office-status-dot" id="office-dot"></div>
+        <span id="office-status-text">Star Office</span>
+        <span style="margin-left:auto; opacity:0.5;">port 19000</span>
+        <a href="/office/native" target="_blank" style="color:#60a5fa; font-size:11px;">↗ open standalone</a>
+    </div>
+    <div id="office-content" style="flex:1; display:flex; flex-direction:column;">
+        <iframe
+            id="office-iframe"
+            class="office-iframe"
+            src="http://127.0.0.1:19000"
+            title="Star Office"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        ></iframe>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const iframe = document.getElementById('office-iframe');
+    const dot = document.getElementById('office-dot');
+    const statusText = document.getElementById('office-status-text');
+    const content = document.getElementById('office-content');
+
+    // Check if Star Office is reachable
+    async function checkStarOffice() {
+        try {
+            const res = await fetch('/api/star-office-status', { cache: 'no-store' });
+            const data = await res.json();
+            if (data.online) {
+                dot.classList.remove('offline');
+                statusText.textContent = 'Star Office — online';
+                if (!iframe.src || iframe.src === 'about:blank') {
+                    iframe.src = 'http://127.0.0.1:19000';
+                }
+            } else {
+                dot.classList.add('offline');
+                statusText.textContent = 'Star Office — offline';
+                showOfflineMessage();
+            }
+        } catch(e) {
+            dot.classList.add('offline');
+            statusText.textContent = 'Star Office — status unknown';
+        }
+    }
+
+    function showOfflineMessage() {
+        if (document.getElementById('office-offline-shown')) return;
+        const msg = document.createElement('div');
+        msg.id = 'office-offline-shown';
+        msg.className = 'office-offline-msg';
+        msg.innerHTML = `
+            <div class="icon">🏙️</div>
+            <div>Star Office is offline (port 19000)</div>
+            <div style="font-size:12px; opacity:0.7;">Check LaunchAgent: com.bill.star-office</div>
+            <a href="/office/native" target="_blank">Try direct access →</a>
+        `;
+        // Show iframe anyway, it may load even if fetch check failed
+    }
+
+    // iframe load event
+    iframe.addEventListener('load', function() {
+        try {
+            if (iframe.contentDocument && iframe.contentDocument.title) {
+                dot.classList.remove('offline');
+                statusText.textContent = 'Star Office — loaded';
+            }
+        } catch(e) {
+            // cross-origin, expected
+            dot.classList.remove('offline');
+            statusText.textContent = 'Star Office — loaded';
+        }
+    });
+
+    iframe.addEventListener('error', function() {
+        dot.classList.add('offline');
+        statusText.textContent = 'Star Office — failed to load';
+    });
+
+    checkStarOffice();
+})();
+</script>
+{% endblock %}
