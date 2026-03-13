@@ -1,6 +1,12 @@
 let approvals = [];
 let selectedApprovalId = null;
 
+const STATUS_LABELS = {
+  pending_approval: 'pending',
+  approved: 'approved',
+  skipped: 'skipped'
+};
+
 function showBanner(message) {
   const el = document.getElementById('approval-banner');
   if (!el) return;
@@ -10,14 +16,21 @@ function showBanner(message) {
 }
 
 async function loadApprovals() {
-  const resp = await fetch('/api/approvals');
+  const resp = await fetch('/api/council/queue?all=1');
   const data = await resp.json();
-  approvals = data.approvals || [];
+  approvals = data.items || [];
   renderApprovals();
 }
 
+function statusLabel(status) {
+  return STATUS_LABELS[status] || status || 'unknown';
+}
+
 function approvalMetaText(item) {
-  return `${item.submitted_by || 'Unknown'} · ${new Date(item.created_at).toLocaleString()}`;
+  const council = item.council || 'Council';
+  const category = item.category ? item.category.toUpperCase() : 'GENERAL';
+  const created = item.created_at ? new Date(item.created_at).toLocaleString() : 'Unknown date';
+  return `${council} · ${category} · ${created}`;
 }
 
 function renderCard(item, listEl) {
@@ -25,10 +38,11 @@ function renderCard(item, listEl) {
   card.className = 'approval-card';
   if (selectedApprovalId === item.id) card.classList.add('selected');
   card.dataset.id = String(item.id);
+  const score = item.avg_score ? `Score ${Number(item.avg_score).toFixed(1)}` : 'Score —';
   card.innerHTML = `
     <div class="approval-title">${item.title}</div>
-    <div class="approval-desc">${item.description || ''}</div>
-    <div class="approval-meta">${approvalMetaText(item)} · <span class="approval-status status-${item.status}">${item.status}</span></div>
+    <div class="approval-desc">${item.top_objection || item.verdict || ''}</div>
+    <div class="approval-meta">${approvalMetaText(item)} · ${score} · <span class="approval-status status-${statusLabel(item.status)}">${statusLabel(item.status)}</span></div>
   `;
   card.addEventListener('click', () => showDetail(item));
   listEl.appendChild(card);
@@ -43,11 +57,12 @@ function renderApprovals() {
   const now = Date.now();
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
 
-  const openItems = approvals.filter((item) => item.status === 'pending');
+  const openItems = approvals.filter((item) => item.status === 'pending_approval');
   const resolvedItems = approvals.filter((item) => {
-    if (!['approved', 'rejected'].includes(item.status)) return false;
-    if (!item.resolved_at) return false;
-    const t = new Date(item.resolved_at).getTime();
+    if (!['approved', 'skipped'].includes(item.status)) return false;
+    const timestamp = item.actioned_at || item.created_at;
+    if (!timestamp) return false;
+    const t = new Date(timestamp).getTime();
     return Number.isFinite(t) && (now - t) <= sevenDaysMs;
   });
 
@@ -67,6 +82,13 @@ function renderApprovals() {
   if (selected) showDetail(selected);
 }
 
+function renderVotes(item) {
+  if (!item.votes) return '<div>Votes unavailable.</div>';
+  return Object.entries(item.votes)
+    .map(([name, vote]) => `<div><strong>${name}:</strong> ${vote.score} — ${vote.perspective}</div>`)
+    .join('');
+}
+
 function showDetail(item) {
   selectedApprovalId = item.id;
   document.querySelectorAll('.approval-card').forEach((card) => {
@@ -76,40 +98,34 @@ function showDetail(item) {
   const detail = document.getElementById('approval-detail-body');
   detail.innerHTML = `
     <div><strong>Title:</strong> ${item.title}</div>
-    <div><strong>Submitted by:</strong> ${item.submitted_by || '—'}</div>
-    <div><strong>Description:</strong> ${item.description || '—'}</div>
-    <div><strong>Status:</strong> <span class="approval-status status-${item.status}">${item.status}</span></div>
-    <label for="reply-text">Reply</label>
-    <textarea class="reply-input" id="reply-text" rows="4" placeholder="Type Jonathan's reply...">${item.reply_text || ''}</textarea>
+    <div><strong>Council:</strong> ${item.council || '—'}</div>
+    <div><strong>Category:</strong> ${item.category || '—'}</div>
+    <div><strong>Verdict:</strong> ${item.verdict || '—'}</div>
+    <div><strong>Average Score:</strong> ${item.avg_score || '—'} (${item.passing_votes || 0}/${item.total_members || 0})</div>
+    <div><strong>Top Objection:</strong> ${item.top_objection || '—'}</div>
+    <div><strong>Status:</strong> <span class="approval-status status-${statusLabel(item.status)}">${statusLabel(item.status)}</span></div>
+    <div><strong>Votes:</strong></div>
+    <div class="vote-list">${renderVotes(item)}</div>
     <div class="detail-actions">
       <button class="btn btn-primary" data-action="approve">Approve</button>
-      <button class="btn btn-ghost" data-action="reject">Reject</button>
-      <button class="btn btn-secondary" data-action="reply">Send Reply</button>
+      <button class="btn btn-ghost" data-action="skip">Skip</button>
     </div>
   `;
 
   detail.querySelectorAll('button').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const replyText = document.getElementById('reply-text').value;
-      let result = null;
-      if (btn.dataset.action === 'approve') {
-        result = await updateApproval(item.id, 'approved', replyText);
-      } else if (btn.dataset.action === 'reject') {
-        result = await updateApproval(item.id, 'rejected', replyText);
-      } else {
-        result = await updateApproval(item.id, item.status, replyText);
-      }
-      if (result) showBanner('✅ Reply received — routing to Bill');
+      const result = await updateApproval(item.id, btn.dataset.action);
+      if (result) showBanner('✅ Decision saved — routed to feedback log');
       await loadApprovals();
     });
   });
 }
 
-async function updateApproval(id, status, replyText) {
-  const resp = await fetch(`/api/approvals/${id}`, {
-    method: 'PUT',
+async function updateApproval(id, action) {
+  const resp = await fetch('/api/council/approve', {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, reply_text: replyText })
+    body: JSON.stringify({ id, action })
   });
   if (!resp.ok) return null;
   return resp.json();

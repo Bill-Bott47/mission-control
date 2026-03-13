@@ -84,9 +84,21 @@
   color: var(--success);
 }
 
+.status-skipped {
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5f5;
+}
+
 .status-rejected {
   background: rgba(220, 38, 38, 0.15);
   color: var(--danger);
+}
+
+.vote-list {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .approval-detail {
