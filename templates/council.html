@@ -9,68 +9,23 @@
     <div class="subtle">Advisory groups + deliberations</div>
 </header>
 
-<div class="council-grid">
-    <div class="council-card">
-        <h2>Content Council</h2>
-        <div class="council-members">Quill · Pixel · Scrub · Content PM · Marty · Scout</div>
-        <div class="council-meta">
-            <span>Active deliberations: 1</span>
-            <span>Pass rate: 100%</span>
-        </div>
-        <details class="council-box" open>
-            <summary>Ideas Discussed</summary>
-            <div class="council-body">Topic: "AI agents changing marketing" and "OpenClaw vs Claude Code".</div>
-        </details>
-        <details class="council-box">
-            <summary>Member Feedback</summary>
-            <div class="council-body">Quill: narrative hook first. Pixel: use bold first-frame visual. Scrub: source credibility checks passed.</div>
-        </details>
-        <details class="council-box">
-            <summary>Evolution to Final</summary>
-            <div class="council-body">Merged two ideas into one thread: "Operator stack for modern agencies", then routed to Script stage.</div>
-        </details>
+<section class="council-section">
+    <div class="section-header">
+        <h2 class="section-title">Pending approvals</h2>
+        <div class="subtle">Live from approvals-queue.json</div>
     </div>
+    <div class="council-queue-grid" id="council-queue"></div>
+</section>
 
-    <div class="council-card">
-        <h2>Business Council</h2>
-        <div class="council-members">Bob · Sam · Scout · Scrub</div>
-        <div class="council-meta">
-            <span>Active deliberations: 1</span>
-            <span>Pass rate: 100%</span>
-        </div>
-        <details class="council-box" open>
-            <summary>Ideas Discussed</summary>
-            <div class="council-body">Phoenix Outbound Engine positioning and ICP sequence.</div>
-        </details>
-        <details class="council-box">
-            <summary>Member Feedback</summary>
-            <div class="council-body">Sam: prioritize ARR outcomes. Bob: tighten technical scope. Scout: add new lead-gen source path.</div>
-        </details>
-        <details class="council-box">
-            <summary>Evolution to Final</summary>
-            <div class="council-body">Pivoted from broad outbound automation to narrow "qualified web3 leads + proof snippets" workflow.</div>
-        </details>
+<section class="council-section">
+    <div class="section-header">
+        <h2 class="section-title">Council overview</h2>
+        <div class="subtle">Current queue density by council</div>
     </div>
+    <div class="council-summary-grid" id="council-summary"></div>
+</section>
+{% endblock %}
 
-    <div class="council-card">
-        <h2>Project Council</h2>
-        <div class="council-members">Scout · Marty · Sam · Bob · Scrub</div>
-        <div class="council-meta">
-            <span>Active deliberations: 1</span>
-            <span>Pass rate: 100%</span>
-        </div>
-        <details class="council-box" open>
-            <summary>Ideas Discussed</summary>
-            <div class="council-body">Project taxonomy cleanup: Projects vs Operations vs Wikis.</div>
-        </details>
-        <details class="council-box">
-            <summary>Member Feedback</summary>
-            <div class="council-body">Consensus: finite builds stay in Projects, recurring systems move to Operations, infra/research move to Wikis.</div>
-        </details>
-        <details class="council-box">
-            <summary>Evolution to Final</summary>
-            <div class="council-body">Implemented tabbed Projects page with Emma + Health Data Integration marked complete.</div>
-        </details>
-    </div>
-</div>
+{% block scripts %}
+<script src="{{ url_for('static', filename='council.js') }}"></script>
 {% endblock %}
